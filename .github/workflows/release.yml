@@ -1,17 +1,16 @@
 # Build Velo for Windows, macOS, and Linux and attach installers to a GitHub Release.
 #
 # Publishing to GitHub Releases:
-#   • Build jobs use electron-builder --publish never so they ONLY produce files under release/
-#     (electron-builder's GitHub publisher would need GH_TOKEN and would race with sibling jobs).
-#   • The publish-release job creates/edits the GitHub Release and uploads assets **sequentially**
-#     (`preserve_order` on action-gh-release) to avoid bursting the GitHub API.
+#   • Build jobs use electron-builder --publish never. Each job uploads **only** its installer
+#     (Windows .exe, macOS .dmg, Linux .AppImage) — not unpacked dirs, blockmaps, or latest.yml.
+#   • The publish-release job uploads **only those three files** to the Release (sequentially
+#     via `preserve_order`) to avoid bursting the GitHub API.
 #
 # Usage:
 #   1. Bump "version" in package.json (and commit).
 #   2. Tag and push: git tag v1.0.2 && git push origin v1.0.2
 #
-# The tag should match the version (e.g. v1.0.2 ↔ 1.0.2 in package.json) so users and
-# electron-updater see a consistent version.
+# The tag should match the version (e.g. v1.0.2 ↔ 1.0.2 in package.json).
 #
 # Optional: run manually from Actions → "Release" → Run workflow (builds only; see
 # release job `if:` below — enable workflow_dispatch uploads by adjusting that guard).
@@ -47,7 +46,8 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: velo-windows
-          path: release/
+          path: release/Velo-Installer-Windows-*.exe
+          if-no-files-found: error
 
   build-macos:
     runs-on: macos-latest
@@ -61,13 +61,14 @@ jobs:
 
       - run: npm ci
 
-      - name: Build macOS (DMG + ZIP)
+      - name: Build macOS DMG
         run: npm run dist:mac -- --publish never
 
       - uses: actions/upload-artifact@v4
         with:
           name: velo-macos
-          path: release/
+          path: release/Velo-Installer-macOS-*.dmg
+          if-no-files-found: error
 
   build-linux:
     runs-on: ubuntu-latest
@@ -87,7 +88,8 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: velo-linux
-          path: release/
+          path: release/Velo-Installer-Linux-*.AppImage
+          if-no-files-found: error
 
   publish-release:
     name: Publish GitHub Release
@@ -124,14 +126,39 @@ jobs:
       - name: List artifacts (debug)
         run: find artifacts -type f | sort
 
+      - name: Collect installers only (flat folder for GitHub Release)
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p release-assets
+          copy_one () {
+            local pat="$1"
+            local f
+            f=$(find artifacts -type f -name "$pat" | head -n1)
+            if [[ -z "$f" ]]; then
+              echo "Missing file matching $pat under artifacts/"
+              find artifacts -type f | sort || true
+              exit 1
+            fi
+            cp "$f" "release-assets/$(basename "$f")"
+            echo "Collected $(basename "$f")"
+          }
+          copy_one 'Velo-Installer-Windows-*.exe'
+          copy_one 'Velo-Installer-macOS-*.dmg'
+          copy_one 'Velo-Installer-Linux-*.AppImage'
+          ls -la release-assets
+
       - name: Create release and upload assets
         uses: softprops/action-gh-release@v2
         with:
           draft: false
           body_path: release_body.md
           generate_release_notes: true
-          # One upload after another (not parallel) — reduces GitHub REST burst / secondary rate limits.
           preserve_order: true
-          files: artifacts/**/*
+          fail_on_unmatched_files: true
+          files: |
+            release-assets/Velo-Installer-Windows-*.exe
+            release-assets/Velo-Installer-macOS-*.dmg
+            release-assets/Velo-Installer-Linux-*.AppImage
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

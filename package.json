@@ -72,8 +72,7 @@
     },
     "mac": {
       "target": [
-        "dmg",
-        "zip"
+        "dmg"
       ],
       "category": "public.app-category.productivity",
       "artifactName": "Velo-Installer-macOS-${version}.${ext}",
