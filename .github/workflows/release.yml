@@ -3,8 +3,8 @@
 # Publishing to GitHub Releases:
 #   • Build jobs use electron-builder --publish never so they ONLY produce files under release/
 #     (electron-builder's GitHub publisher would need GH_TOKEN and would race with sibling jobs).
-#   • The publish-release job creates/edits the GitHub Release and uploads ALL assets using
-#     GITHUB_TOKEN (provided by Actions automatically; no personal PAT / GH_TOKEN secret).
+#   • The publish-release job creates/edits the GitHub Release and uploads assets **sequentially**
+#     (`preserve_order` on action-gh-release) to avoid bursting the GitHub API.
 #
 # Usage:
 #   1. Bump "version" in package.json (and commit).
@@ -130,6 +130,8 @@ jobs:
           draft: false
           body_path: release_body.md
           generate_release_notes: true
+          # One upload after another (not parallel) — reduces GitHub REST burst / secondary rate limits.
+          preserve_order: true
           files: artifacts/**/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
