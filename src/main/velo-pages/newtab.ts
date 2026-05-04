@@ -364,6 +364,15 @@ const NEW_TAB_EXTRA = `
     border: none;
     background: transparent;
     border-radius: 20px;
+    transition: opacity 0.15s ease;
+  }
+  .nt-tile.nt-dragging {
+    opacity: 0.55;
+    z-index: 5;
+  }
+  .nt-tile.nt-drag-target .nt-tile-hit {
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 55%, transparent);
+    background: color-mix(in srgb, var(--accent) 10%, transparent);
   }
   .nt-tile-hit {
     display: flex;
@@ -379,11 +388,22 @@ const NEW_TAB_EXTRA = `
     font: inherit;
     cursor: pointer;
     touch-action: manipulation;
-    transition: background 0.14s ease;
+    transition: background 0.14s ease, box-shadow 0.14s ease;
     box-sizing: border-box;
     min-height: min(8.35rem, 32vw);
   }
   .nt-tile-hit:hover { background: color-mix(in srgb, var(--fg) 7%, transparent); }
+  .nt-tile-hit.nt-tile-hit--draggable {
+    cursor: grab;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  .nt-tile-hit.nt-tile-hit--draggable:active {
+    cursor: grabbing;
+  }
+  .nt-tile.nt-dragging .nt-tile-hit.nt-tile-hit--draggable {
+    cursor: grabbing;
+  }
   .nt-tile-hit:focus-visible {
     outline: none;
     box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 38%, transparent);
@@ -620,6 +640,13 @@ const NEW_TAB_BODY = `<div class="nt-wrap">
   var form = document.getElementById('nf');
   var dial = document.getElementById('dial');
   var dialWrap = document.getElementById('dialWrap');
+  var dialDragId = null;
+  function clearDialDragTargets() {
+    if (!dial) return;
+    dial.querySelectorAll('.nt-tile.nt-drag-target').forEach(function (el) {
+      el.classList.remove('nt-drag-target');
+    });
+  }
   var ntSettingsAnchor = document.getElementById('ntSettingsAnchor');
   var ntSettingsBtn = document.getElementById('ntSettingsBtn');
   var ntSettingsMenu = document.getElementById('ntSettingsMenu');
@@ -796,6 +823,15 @@ const NEW_TAB_BODY = `<div class="nt-wrap">
       if (favModal && favModal.classList.contains('nt-open')) closeFavModal();
     }
   });
+  document.addEventListener('dragend', function () {
+    dialDragId = null;
+    if (dial) {
+      dial.querySelectorAll('.nt-tile.nt-dragging').forEach(function (el) {
+        el.classList.remove('nt-dragging');
+      });
+    }
+    clearDialDragTargets();
+  });
   var ntBgMeta = window.__NT_BG_META || { presets: [], labels: {}, hex: {}, files: [] };
   function syncNtBgPicked(bg) {
     document.querySelectorAll('.nt-bg-swatch').forEach(function (el) {
@@ -959,11 +995,34 @@ const NEW_TAB_BODY = `<div class="nt-wrap">
         var ch = (row.label && row.label.charAt(0)) ? row.label.charAt(0).toUpperCase() : '?';
         var wrap = document.createElement('div');
         wrap.className = 'nt-tile';
+        wrap.dataset.shortcutId = row.id;
         var hit = document.createElement('button');
         hit.type = 'button';
-        hit.className = 'nt-tile-hit';
+        hit.className = 'nt-tile-hit nt-tile-hit--draggable';
+        hit.setAttribute('draggable', 'true');
         hit.setAttribute('aria-label', 'Open ' + row.label);
-        hit.addEventListener('click', function () {
+        var suppressNavClickUntil = 0;
+        hit.addEventListener('dragstart', function (e) {
+          if (!e.dataTransfer) return;
+          closeAllTileMenus();
+          closeNtSettingsMenu();
+          dialDragId = row.id;
+          e.dataTransfer.setData('text/plain', row.id);
+          e.dataTransfer.effectAllowed = 'move';
+          wrap.classList.add('nt-dragging');
+        });
+        hit.addEventListener('dragend', function () {
+          dialDragId = null;
+          wrap.classList.remove('nt-dragging');
+          clearDialDragTargets();
+          suppressNavClickUntil = Date.now() + 150;
+        });
+        hit.addEventListener('click', function (ev) {
+          if (Date.now() < suppressNavClickUntil) {
+            ev.preventDefault();
+            ev.stopPropagation();
+            return;
+          }
           api.navigateUrl(row.url).catch(function () {});
         });
         var av = document.createElement('div');
@@ -1062,6 +1121,45 @@ const NEW_TAB_BODY = `<div class="nt-wrap">
           ev.stopPropagation();
           closeAllTileMenus();
           api.removeNewTabShortcut(row.id).then(function () { renderDial(); }).catch(function () {});
+        });
+        wrap.addEventListener('dragover', function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          var fromId = dialDragId;
+          if (!fromId || fromId === row.id) return;
+          if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+          wrap.classList.add('nt-drag-target');
+        });
+        wrap.addEventListener('dragleave', function (e) {
+          e.stopPropagation();
+          var rel = e.relatedTarget;
+          if (!rel || !wrap.contains(rel)) wrap.classList.remove('nt-drag-target');
+        });
+        wrap.addEventListener('drop', function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          wrap.classList.remove('nt-drag-target');
+          var fromId = e.dataTransfer ? e.dataTransfer.getData('text/plain') : '';
+          var toId = row.id;
+          if (!fromId || fromId === toId || !dial) return;
+          var tiles = Array.prototype.slice.call(dial.querySelectorAll('.nt-tile'));
+          var order = tiles
+            .map(function (t) {
+              return t.dataset.shortcutId;
+            })
+            .filter(Boolean);
+          var fromIdx = order.indexOf(fromId);
+          var toIdx = order.indexOf(toId);
+          if (fromIdx < 0 || toIdx < 0) return;
+          var next = order.slice();
+          next.splice(fromIdx, 1);
+          next.splice(toIdx, 0, fromId);
+          api
+            .reorderNewTabShortcuts(next)
+            .then(function () {
+              renderDial();
+            })
+            .catch(function () {});
         });
         wrap.appendChild(menuAnchor);
         dial.appendChild(wrap);

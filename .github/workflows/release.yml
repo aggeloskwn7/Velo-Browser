@@ -1,5 +1,11 @@
 # Build Velo for Windows, macOS, and Linux and attach installers to a GitHub Release.
 #
+# Publishing to GitHub Releases:
+#   • Build jobs use electron-builder --publish never so they ONLY produce files under release/
+#     (electron-builder's GitHub publisher would need GH_TOKEN and would race with sibling jobs).
+#   • The publish-release job creates/edits the GitHub Release and uploads ALL assets using
+#     GITHUB_TOKEN (provided by Actions automatically; no personal PAT / GH_TOKEN secret).
+#
 # Usage:
 #   1. Bump "version" in package.json (and commit).
 #   2. Tag and push: git tag v1.0.2 && git push origin v1.0.2
@@ -34,8 +40,9 @@ jobs:
 
       - run: npm ci
 
+      # Skip electron-builder GitHub upload; publish-release attaches these files to the Release.
       - name: Build Windows installer
-        run: npm run dist:win
+        run: npm run dist:win -- --publish never
 
       - uses: actions/upload-artifact@v4
         with:
@@ -55,7 +62,7 @@ jobs:
       - run: npm ci
 
       - name: Build macOS (DMG + ZIP)
-        run: npm run dist:mac
+        run: npm run dist:mac -- --publish never
 
       - uses: actions/upload-artifact@v4
         with:
@@ -75,7 +82,7 @@ jobs:
       - run: npm ci
 
       - name: Build Linux AppImage
-        run: npm run dist:linux
+        run: npm run dist:linux -- --publish never
 
       - uses: actions/upload-artifact@v4
         with:

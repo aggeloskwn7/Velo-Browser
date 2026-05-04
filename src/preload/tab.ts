@@ -91,6 +91,8 @@ const internal = {
     ipcRenderer.invoke(IPC.internalNewTabShortcutUpdate, { id, label, url }),
   removeNewTabShortcut: (id: string): Promise<void> =>
     ipcRenderer.invoke(IPC.internalNewTabShortcutRemove, { id }),
+  reorderNewTabShortcuts: (orderedIds: string[]): Promise<void> =>
+    ipcRenderer.invoke(IPC.internalNewTabShortcutsReorder, { orderedIds }),
   navigateSearch: (query: string): Promise<void> =>
     ipcRenderer.invoke(IPC.internalNavigateSearch, { query }),
   navigateUrl: (url: string): Promise<void> =>

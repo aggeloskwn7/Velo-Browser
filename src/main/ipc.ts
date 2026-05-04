@@ -168,6 +168,9 @@ const newTabShortcutUpdate = z.object({
   url: z.string().min(1).max(2048)
 })
 const newTabShortcutRemove = z.object({ id: z.string().uuid() })
+const newTabShortcutsReorder = z.object({
+  orderedIds: z.array(z.string().uuid())
+})
 const historyRemovePayload = z.object({
   ids: z.array(z.string().min(1).max(64)).min(1).max(500)
 })
@@ -465,6 +468,17 @@ export function registerIpcHandlers(): void {
     assertVeloPage(e.sender)
     const { id } = newTabShortcutRemove.parse(raw)
     settings.removeNewTabShortcut(id)
+  })
+
+  ipcMain.handle(IPC.internalNewTabShortcutsReorder, (e, raw) => {
+    try {
+      assertVeloPage(e.sender)
+      const { orderedIds } = newTabShortcutsReorder.parse(raw)
+      settings.reorderNewTabShortcuts(orderedIds)
+    } catch (err) {
+      console.error('[velo IPC] internalNewTabShortcutsReorder failed', err)
+      throw err
+    }
   })
 
   ipcMain.handle(IPC.internalNavigateSearch, (e, raw) => {

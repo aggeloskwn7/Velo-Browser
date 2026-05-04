@@ -536,3 +536,22 @@ export function updateNewTabShortcut(id: string, label: string, url: string): Ne
   store.set('newTabShortcuts', next)
   return next[i] as NewTabShortcut
 }
+
+export function reorderNewTabShortcuts(orderedIds: string[]): void {
+  const list = store.get('newTabShortcuts')
+  if (orderedIds.length !== list.length) {
+    throw new Error('Shortcut order must include every shortcut exactly once')
+  }
+  const byId = new Map(list.map((s) => [s.id, s] as const))
+  const next: NewTabShortcut[] = []
+  for (const id of orderedIds) {
+    const entry = byId.get(id)
+    if (!entry) throw new Error('Unknown shortcut in order')
+    next.push(entry)
+    byId.delete(id)
+  }
+  if (byId.size > 0) {
+    throw new Error('Shortcut order must include every shortcut exactly once')
+  }
+  store.set('newTabShortcuts', next)
+}

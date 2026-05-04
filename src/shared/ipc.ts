@@ -88,6 +88,7 @@ export const IPC = {
   internalNewTabShortcutAdd: 'velo:internal:newtab:shortcuts:add',
   internalNewTabShortcutUpdate: 'velo:internal:newtab:shortcuts:update',
   internalNewTabShortcutRemove: 'velo:internal:newtab:shortcuts:remove',
+  internalNewTabShortcutsReorder: 'velo:internal:newtab:shortcuts:reorder',
   internalNavigateSearch: 'velo:internal:navigate:search',
   internalNavigateUrl: 'velo:internal:navigate:url',
   

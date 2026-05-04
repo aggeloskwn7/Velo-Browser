@@ -47,7 +47,22 @@ git push origin v1.0.2
 
 (Replace `main` with your default branch if different.)
 
-Pushing the tag starts the **Release** workflow: three platform builds, then a GitHub Release with your CHANGELOG section and generated notes.
+Pushing the tag starts the **Release** workflow: three runners build installers, then **Publish GitHub Release** creates the GitHub Release and uploads every file (Windows, macOS, Linux). **Your builds are still published** to GitHub Releases.
+
+### Do I need a `GH_TOKEN` secret?
+
+**No.** The job **Create release and upload assets** uses `GITHUB_TOKEN`, which GitHub injects into every workflow. You do **not** need a Personal Access Token unless you change the workflow.
+
+### Then why `--publish never` on the build commands?
+
+Your `package.json` tells electron-builder to use the **GitHub** publisher. After each build, electron-builder would try to upload to Releases itself and insists on an env var named **`GH_TOKEN`**. That is **separate** from the final job that already publishes everything with **`GITHUB_TOKEN`**.
+
+So:
+
+- **`--publish never`** = “only build the installers on this runner; do not upload yet.”
+- **`publish-release`** = “one job uploads all installers + release notes to GitHub Releases.”
+
+Without `--publish never`, you would need to set `GH_TOKEN` on **three** runners at once, and those uploads could **fight each other** for the same release. One publish step at the end is the intended setup.
 
 ## 5. Check GitHub
 
