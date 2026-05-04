@@ -1,8 +1,10 @@
 import { app } from 'electron'
-import { autoUpdater } from 'electron-updater'
+import electronUpdater from 'electron-updater'
 import type { AutoUpdateStatusPayload } from '../shared/ipc.js'
 import { IPC } from '../shared/ipc.js'
 import { getChromeWebContents } from './window.js'
+
+const { autoUpdater } = electronUpdater
 
 let inited = false
 let lastStatus: AutoUpdateStatusPayload = { phase: 'idle' }

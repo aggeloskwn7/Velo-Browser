@@ -1764,9 +1764,10 @@ export default function App(): JSX.Element {
                 if (e.key === 'Enter') {
                   if (showOmnibarSuggest) {
                     e.preventDefault()
-                    const row =
-                      omnibarSuggestRows[omnibarSuggestIndex] ?? omnibarSuggestRows[0] ?? null
-                    void onNavigate(row?.submitInput ?? omnibar)
+                    const row = omnibarSuggestRows[omnibarSuggestIndex] ?? null
+                    const useRowSubmit =
+                      row != null && (row.source === 'history' || row.source === 'navigate')
+                    void onNavigate(useRowSubmit ? row.submitInput : omnibar)
                     return
                   }
                   void onNavigate()

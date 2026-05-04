@@ -165,7 +165,7 @@ function panelDownloadPreferences(): string {
 
 function panelPrivacy(): string {
   return `<h2 class="vp-set-h">Privacy</h2>
-<p class="vp-set-note">Control how Velo filters ads and trackers. The default is <strong>Medium</strong>. If a page looks broken (blank screen, login fails), add its hostname to the allowlist below or use the toast suggestion when Velo blocks many requests.</p>
+<p class="vp-set-note">Control how Velo filters ads and trackers. The default is <strong>Off</strong> for compatibility; turn it up if you want stricter blocking. If a page looks broken, add its hostname to the allowlist below or use the toast suggestion when Velo blocks many requests.</p>
 <div class="card">
   <div class="vp-set-row">
     <div class="vp-set-row__text">

@@ -80,7 +80,8 @@ const defaults: StoreShape = {
     passwordAutofillHotkey: true,
     passwordsNeverSaveDomains: [],
     passwordVaultRememberDevice: true,
-    adBlockAllowlistHostnames: []
+    adBlockAllowlistHostnames: [],
+    adBlockLevel: 'off'
   },
   bookmarkFolders: [],
   bookmarks: [],
@@ -141,7 +142,7 @@ function publicSettingsFromStored(stored: SettingsStored): VeloSettings {
     startupBehavior: stored.startupBehavior,
     newTabShortcutsEnabled: stored.newTabShortcutsEnabled !== false,
     newTabBackground: normalizeNewTabBackground(stored.newTabBackground, allowed),
-    adBlockLevel: stored.adBlockLevel ?? 'medium',
+    adBlockLevel: stored.adBlockLevel ?? 'off',
     adBlockAllowlistHostnames: Array.isArray(stored.adBlockAllowlistHostnames)
       ? [
           ...new Set(
