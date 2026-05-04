@@ -1,0 +1,123 @@
+{
+  "name": "velo-browser",
+  "productName": "Velo",
+  "version": "1.0.0",
+  "description": "Velo Browser — a minimal Chromium-based desktop browser built with Electron",
+  "main": "./out/main/index.js",
+  "type": "module",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "preview": "electron-vite preview",
+    "start": "electron-vite preview",
+    "pack": "electron-vite build && node scripts/sync-windows-ico.cjs && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --dir",
+    "dist": "electron-vite build && node scripts/sync-windows-ico.cjs && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder",
+    "dist:win": "electron-vite build && node scripts/sync-windows-ico.cjs && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --win",
+    "dist:mac": "electron-vite build && electron-builder --mac",
+    "dist:linux": "electron-vite build && electron-builder --linux",
+    "clean:win-browser-reg": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/clean-velo-windows-browser-registry.ps1"
+  },
+  "keywords": [
+    "electron",
+    "browser",
+    "chromium",
+    "velo"
+  ],
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/aggeloskwn7/Velo-Browser.git"
+  },
+  "build": {
+    "appId": "com.velobrowser.app",
+    "productName": "Velo",
+    "copyright": "Copyright © 2026 Velo Browser contributors",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "out/**/*",
+      "package.json",
+      "browser-backgrounds/**/*",
+      "public/**/*"
+    ],
+    "asar": true,
+    "afterPack": "./scripts/after-pack-win-icon.js",
+    "extraMetadata": {
+      "productName": "Velo"
+    },
+    "win": {
+      "signAndEditExecutable": false,
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "public/Velo.ico",
+      "executableName": "Velo"
+    },
+    "nsis": {
+      "artifactName": "Velo-Installer-Windows-${version}.${ext}",
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Velo",
+      "uninstallDisplayName": "Velo"
+    },
+    "mac": {
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "category": "public.app-category.productivity",
+      "artifactName": "Velo-Installer-macOS-${version}.${ext}",
+      "icon": "public/Velo.png",
+      "executableName": "Velo",
+      "hardenedRuntime": false
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "releaseType": "release"
+      }
+    ],
+    "linux": {
+      "target": [
+        "AppImage"
+      ],
+      "category": "Network",
+      "artifactName": "Velo-Installer-Linux-${version}.${ext}",
+      "icon": "public/Velo.png",
+      "executableName": "Velo"
+    }
+  },
+  "dependencies": {
+    "@cliqz/adblocker-electron": "^1.34.0",
+    "electron-store": "^10.0.0",
+    "electron-updater": "^6.8.3",
+    "papaparse": "^5.5.3",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/papaparse": "^5.5.2",
+    "@types/react": "^18.3.18",
+    "@types/react-dom": "^18.3.5",
+    "@vitejs/plugin-react": "^4.3.4",
+    "cross-env": "^10.1.0",
+    "electron": "^41.5.0",
+    "electron-builder": "^25.1.8",
+    "electron-vite": "^2.3.0",
+    "rcedit": "^5.0.2",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "to-ico": "^1.1.5",
+    "typescript": "^5.7.2",
+    "vite": "^5.4.11"
+  }
+}

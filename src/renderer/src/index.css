@@ -1,0 +1,109 @@
+:root {
+  --chrome-height: 116px;
+  font-family:
+    ui-sans-serif,
+    system-ui,
+    'Segoe UI',
+    Roboto,
+    sans-serif;
+}
+
+html[data-chrome-theme='default'] {
+  color-scheme: dark;
+  --bg: #121218;
+  --bg-elevated: #1a1a22;
+  --border: #2a2a38;
+  --text: #eaeaf0;
+  --text-muted: #8b8b9e;
+  --accent: #6c9eff;
+  --accent-dim: #4a7fd9;
+  --danger: #f07178;
+  --radius: 10px;
+  --chrome-tab-strip: #0e0e14;
+  --chrome-tab-hover: rgba(255, 255, 255, 0.08);
+  --chrome-tab-active: rgba(255, 255, 255, 0.1);
+  --chrome-tab-separator: rgba(255, 255, 255, 0.06);
+}
+
+html[data-chrome-theme='white'] {
+  color-scheme: light;
+  --bg: #f4f4f8;
+  --bg-elevated: #ffffff;
+  --border: #d8d8e4;
+  --text: #12121a;
+  --text-muted: #5c5c6e;
+  --accent: #2f6fed;
+  --accent-dim: #255ecf;
+  --danger: #c62828;
+  --radius: 10px;
+  --chrome-tab-strip: #ececf2;
+  --chrome-tab-hover: rgba(0, 0, 0, 0.05);
+  --chrome-tab-active: #fff;
+  --chrome-tab-separator: rgba(0, 0, 0, 0.04);
+}
+
+html[data-chrome-theme='black'] {
+  color-scheme: dark;
+  --bg: #0a0a0a;
+  --bg-elevated: #141414;
+  --border: #2a2a2e;
+  --text: #f0f0f5;
+  --text-muted: #9898a8;
+  --accent: #82b1ff;
+  --accent-dim: #5c9fff;
+  --danger: #ff8a80;
+  --radius: 10px;
+  --chrome-tab-strip: #000000;
+  --chrome-tab-hover: rgba(255, 255, 255, 0.14);
+  --chrome-tab-active: rgba(255, 255, 255, 0.11);
+  --chrome-tab-separator: rgba(255, 255, 255, 0.12);
+}
+
+html[data-chrome-theme='grey'] {
+  color-scheme: dark;
+  --bg: #3a3a42;
+  --bg-elevated: #45454f;
+  --border: #5c5c68;
+  --text: #f2f2f8;
+  --text-muted: #b8b8c8;
+  --accent: #9ec5ff;
+  --accent-dim: #7eb0ff;
+  --danger: #ffb4ab;
+  --radius: 10px;
+  --chrome-tab-strip: #4a4a54;
+  --chrome-tab-hover: rgba(255, 255, 255, 0.12);
+  --chrome-tab-active: #3f4048;
+  --chrome-tab-separator: rgba(255, 255, 255, 0.12);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  height: 100%;
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  min-height: 100%;
+  height: 100%;
+  background: transparent;
+  color: var(--text);
+  
+  overflow: visible;
+  user-select: none;
+}
+
+input,
+button {
+  font: inherit;
+}
+
+#root {
+  height: 100%;
+  min-height: 100%;
+  background: transparent;
+  overflow: hidden;
+}
