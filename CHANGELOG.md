@@ -4,6 +4,12 @@ All notable changes to Velo are documented here. Edit the **`## [x.y.z]`** secti
 
 The release workflow takes the section matching the tag (e.g. tag `v1.0.2` → heading `## [1.0.2]`) and uses it as the GitHub release description (plus auto-generated contributor/commit notes).
 
+## [1.0.5] - 2026-05-02
+
+### Fixed
+
+- Small Github Release bug
+
 ## [1.0.4] - 2026-05-02
 
 ### Fixed
