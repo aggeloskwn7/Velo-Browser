@@ -2,7 +2,7 @@
   "name": "velo-browser",
   "productName": "Velo",
   "version": "1.0.1",
-  "description": "Velo Browser — a minimal Chromium-based desktop browser built with Electron",
+  "description": "Velo",
   "main": "./out/main/index.js",
   "type": "module",
   "scripts": {
