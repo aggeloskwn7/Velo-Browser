@@ -1,10 +1,10 @@
 # Build Velo for Windows, macOS, and Linux and attach installers to a GitHub Release.
 #
 # Publishing to GitHub Releases:
-#   • Build jobs use electron-builder --publish never. Each job uploads **only** its installer
-#     (Windows .exe, macOS .dmg, Linux .AppImage) — not unpacked dirs, blockmaps, or latest.yml.
-#   • The publish-release job uploads **only those three files** to the Release (sequentially
-#     via `preserve_order`) to avoid bursting the GitHub API.
+#   • Build jobs use electron-builder --publish never. Each job uploads its installer plus
+#     electron-updater files (latest.yml / latest-mac.yml / latest-linux.yml + .blockmap).
+#     Unpacked dirs (*.pak, etc.) are not uploaded.
+#   • The publish-release job uploads only those assets (sequentially via `preserve_order`).
 #
 # Usage:
 #   1. Bump "version" in package.json (and commit).
@@ -46,8 +46,11 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: velo-windows
-          path: release/Velo-Installer-Windows-*.exe
           if-no-files-found: error
+          path: |
+            release/Velo-Installer-Windows-*.exe
+            release/latest.yml
+            release/Velo-Installer-Windows-*.exe.blockmap
 
   build-macos:
     runs-on: macos-latest
@@ -67,8 +70,11 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: velo-macos
-          path: release/Velo-Installer-macOS-*.dmg
           if-no-files-found: error
+          path: |
+            release/Velo-Installer-macOS-*.dmg
+            release/latest-mac.yml
+            release/Velo-Installer-macOS-*.dmg.blockmap
 
   build-linux:
     runs-on: ubuntu-latest
@@ -88,8 +94,11 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: velo-linux
-          path: release/Velo-Installer-Linux-*.AppImage
           if-no-files-found: error
+          path: |
+            release/Velo-Installer-Linux-*.AppImage
+            release/latest-linux.yml
+            release/Velo-Installer-Linux-*.AppImage.blockmap
 
   publish-release:
     name: Publish GitHub Release
@@ -126,7 +135,7 @@ jobs:
       - name: List artifacts (debug)
         run: find artifacts -type f | sort
 
-      - name: Collect installers only (flat folder for GitHub Release)
+      - name: Collect release assets (installers + electron-updater metadata)
         shell: bash
         run: |
           set -euo pipefail
@@ -146,6 +155,12 @@ jobs:
           copy_one 'Velo-Installer-Windows-*.exe'
           copy_one 'Velo-Installer-macOS-*.dmg'
           copy_one 'Velo-Installer-Linux-*.AppImage'
+          copy_one 'latest.yml'
+          copy_one 'latest-mac.yml'
+          copy_one 'latest-linux.yml'
+          copy_one 'Velo-Installer-Windows-*.exe.blockmap'
+          copy_one 'Velo-Installer-macOS-*.dmg.blockmap'
+          copy_one 'Velo-Installer-Linux-*.AppImage.blockmap'
           ls -la release-assets
 
       - name: Create release and upload assets
@@ -160,5 +175,11 @@ jobs:
             release-assets/Velo-Installer-Windows-*.exe
             release-assets/Velo-Installer-macOS-*.dmg
             release-assets/Velo-Installer-Linux-*.AppImage
+            release-assets/latest.yml
+            release-assets/latest-mac.yml
+            release-assets/latest-linux.yml
+            release-assets/Velo-Installer-Windows-*.exe.blockmap
+            release-assets/Velo-Installer-macOS-*.dmg.blockmap
+            release-assets/Velo-Installer-Linux-*.AppImage.blockmap
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
