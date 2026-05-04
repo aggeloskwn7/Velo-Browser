@@ -1,10 +1,10 @@
-import { webContents, type WebContents } from 'electron'
+import { webContents, type WebContents, type WebFrameMain } from 'electron'
 import type { AdblockToastPayload } from '../shared/ipc.js'
 import { getSettings, normalizePinnedHostname } from './settings-store.js'
 
 const DEBOUNCE_MS = 450
 
-const SITE_FIX_HINT_THRESHOLD = 6
+const SITE_FIX_HINT_THRESHOLD = 3
 
 export type AdblockNotifyHandlers = {
   sendToast: (payload: AdblockToastPayload) => void
@@ -46,16 +46,23 @@ function flushTab(tabId: number): void {
   if (n <= 0) return
   const h = handlers
   if (!h) return
-  if (h.getActiveTabId() !== tabId) return
+
+  const activeId = h.getActiveTabId()
+  const quiet = activeId != null && tabId !== activeId
 
   const { adBlockLevel, adBlockAllowlistHostnames } = getSettings()
   const allowSet = new Set(adBlockAllowlistHostnames)
   const onAllowlist = Boolean(host && allowSet.has(host))
   const suggestSiteFix =
-    adBlockLevel !== 'off' && !onAllowlist && Boolean(host) && n >= SITE_FIX_HINT_THRESHOLD
+    adBlockLevel !== 'off' &&
+    !onAllowlist &&
+    Boolean(host) &&
+    n >= SITE_FIX_HINT_THRESHOLD &&
+    !quiet
 
   const payload: AdblockToastPayload = {
     count: n,
+    ...(quiet ? { quiet: true as const } : {}),
     ...(suggestSiteFix ? { suggestSiteFix: true as const, pageHostname: host } : {})
   }
   h.sendToast(payload)
@@ -77,15 +84,43 @@ export function clearAllAdblockNotify(): void {
 }
 
 
-export function noteAdblockNetworkAction(webContentsId: number | undefined): void {
-  if (webContentsId == null) return
+type RequestDetailsLike = {
+  webContents?: WebContents
+  webContentsId?: number
+  frame?: WebFrameMain | null
+}
+
+export function noteAdblockNetworkAction(detailsOrWcId: RequestDetailsLike | number | undefined): void {
   const h = handlers
   if (!h) return
-  const wc = webContents.fromId(webContentsId)
-  if (!wc || wc.isDestroyed()) return
+
+  let wc: WebContents | null = null
+  if (typeof detailsOrWcId === 'number' || detailsOrWcId == null) {
+    const id = detailsOrWcId
+    if (id == null) return
+    const w = webContents.fromId(id)
+    if (w && !w.isDestroyed()) wc = w
+  } else {
+    const d = detailsOrWcId
+    if (d.webContents && !d.webContents.isDestroyed()) wc = d.webContents
+    else {
+      const id = d.webContentsId
+      if (id != null) {
+        const w = webContents.fromId(id)
+        if (w && !w.isDestroyed()) wc = w
+      }
+    }
+    if (wc == null && d.frame && !d.frame.isDestroyed()) {
+      try {
+        const w = webContents.fromFrame(d.frame)
+        if (w && !w.isDestroyed()) wc = w
+      } catch {}
+    }
+  }
+
+  if (!wc) return
   const tabId = h.getTabIdForWebContents(wc)
   if (tabId == null) return
-  if (h.getActiveTabId() !== tabId) return
 
   const ph = visiblePageHostname(wc)
 

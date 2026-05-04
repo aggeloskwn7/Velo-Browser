@@ -58,22 +58,37 @@ export function buildPasswordFillScript(creds: FillCred[], mode: 'hotkey' | 'aut
       var ac = (el.getAttribute('autocomplete') || '').toLowerCase();
       return ac.indexOf('webauthn') >= 0;
     }
-    function formHasPasskeyField(form) {
-      if (!form || typeof form.querySelectorAll !== 'function') return false;
-      var ins = form.querySelectorAll('input,textarea');
-      for (var i = 0; i < ins.length; i++) {
-        var ac = (ins[i].getAttribute('autocomplete') || '').toLowerCase();
-        if (ac.indexOf('webauthn') >= 0) return true;
-      }
+    function isPasswordLikeInput(el) {
+      if (!el || el.tagName !== 'INPUT' || el.disabled) return false;
+      if (isPasskeyAutocompleteField(el)) return false;
+      var ty = (el.type || '').toLowerCase();
+      var ac = (el.getAttribute('autocomplete') || '').toLowerCase();
+      if (ty === 'password') return true;
+      if (ac === 'current-password' && ty !== 'hidden') return true;
       return false;
     }
     var pass = null;
     var ae = document.activeElement;
-    if (ae && ae.tagName === 'INPUT' && ae.type === 'password') pass = ae;
-    if (!pass) pass = document.querySelector('input[type="password"]:focus');
-    if (!pass) pass = document.querySelector('input[type="password"]');
-    if (!pass || isPasskeyAutocompleteField(pass)) return;
-    if (formHasPasskeyField(pass.closest('form'))) return;
+    if (ae && ae.tagName === 'INPUT') {
+      if (isPasswordLikeInput(ae)) pass = ae;
+    }
+    if (!pass) {
+      var fp = document.querySelector('input[type="password"]:focus');
+      if (fp && isPasswordLikeInput(fp)) pass = fp;
+    }
+    if (!pass) {
+      var all = document.querySelectorAll('input[type="password"]');
+      for (var pi = 0; pi < all.length; pi++) {
+        if (isPasswordLikeInput(all[pi])) { pass = all[pi]; break; }
+      }
+    }
+    if (!pass) {
+      var cur = document.querySelectorAll('input[autocomplete="current-password"]');
+      for (var ci = 0; ci < cur.length; ci++) {
+        if (isPasswordLikeInput(cur[ci])) { pass = cur[ci]; break; }
+      }
+    }
+    if (!pass || !isPasswordLikeInput(pass)) return;
     if (mode === 'auto' && (pass.value || '').trim().length > 0) return;
     var form = pass.closest('form');
     function findUser() {
@@ -85,28 +100,28 @@ export function buildPasswordFillScript(creds: FillCred[], mode: 'hotkey' | 'aut
           if (el === pass) break;
           var ty = (el.type || '').toLowerCase();
           if (ty === 'hidden' || ty === 'submit' || ty === 'button' || ty === 'checkbox' || ty === 'radio' || ty === 'file' || el.disabled) continue;
-          if (ty === 'password') continue;
+          if (isPasswordLikeInput(el)) continue;
           before.push(el);
         }
         if (before.length) return before[before.length - 1];
       }
       var q = form ? form.querySelector.bind(form) : document.querySelector.bind(document);
       var byName = q('input[autocomplete="username"],input[autocomplete="email"]');
-      if (byName && byName !== pass && byName.type !== 'password') return byName;
+      if (byName && byName !== pass && !isPasswordLikeInput(byName)) return byName;
       var email = q('input[type="email"]');
       if (email && email !== pass) return email;
       var scope = form || document;
       var texts = scope.querySelectorAll('input[type="text"],input[type="tel"],input[type="search"],input:not([type])');
       for (var j = 0; j < texts.length; j++) {
         var t = texts[j];
-        if (t === pass || t.type === 'password') continue;
+        if (t === pass || isPasswordLikeInput(t)) continue;
         var nm = (t.name || '').toLowerCase();
         var id = (t.id || '').toLowerCase();
         if (nm.indexOf('user') >= 0 || nm.indexOf('login') >= 0 || nm.indexOf('email') >= 0 || id.indexOf('user') >= 0 || id.indexOf('login') >= 0 || id.indexOf('email') >= 0) return t;
       }
       for (var k = 0; k < texts.length; k++) {
         var t2 = texts[k];
-        if (t2 !== pass && t2.type !== 'password') return t2;
+        if (t2 !== pass && !isPasswordLikeInput(t2)) return t2;
       }
       return null;
     }
@@ -147,21 +162,27 @@ export function buildPasswordPickerScript(
       var ac = (el.getAttribute('autocomplete') || '').toLowerCase();
       return ac.indexOf('webauthn') >= 0;
     }
-    function formHasPasskeyField(form) {
-      if (!form || typeof form.querySelectorAll !== 'function') return false;
-      var ins = form.querySelectorAll('input,textarea');
-      for (var i = 0; i < ins.length; i++) {
-        var ac = (ins[i].getAttribute('autocomplete') || '').toLowerCase();
-        if (ac.indexOf('webauthn') >= 0) return true;
-      }
-      return false;
-    }
     function isVisible(el) {
       if (!el) return false;
       var st = window.getComputedStyle(el);
       if (st.visibility === 'hidden' || st.display === 'none' || parseFloat(st.opacity || '1') === 0) return false;
       var r = el.getBoundingClientRect();
       return r.width >= 1 && r.height >= 1;
+    }
+    function isPasswordLikeInput(el) {
+      if (!el || el.tagName !== 'INPUT' || el.disabled) return false;
+      if (isPasskeyAutocompleteField(el)) return false;
+      var ty = (el.type || '').toLowerCase();
+      var ac = (el.getAttribute('autocomplete') || '').toLowerCase();
+      if (ty === 'password') return true;
+      if (ac === 'current-password' && ty !== 'hidden') return true;
+      return false;
+    }
+    function focusedPasswordLike() {
+      var ae = document.activeElement;
+      if (!ae || ae.tagName !== 'INPUT' || ae.disabled) return null;
+      if (!isVisible(ae) || ae.readOnly) return null;
+      return isPasswordLikeInput(ae) ? ae : null;
     }
     function forEachElementDeep(root, visitFn) {
       function visit(node) {
@@ -208,13 +229,13 @@ export function buildPasswordPickerScript(
       return s;
     }
     function findVisiblePassword() {
+      var fp = focusedPasswordLike();
+      if (fp) return fp;
       var hit = null;
       forEachElementDeep(document.documentElement, function(el) {
         if (hit) return;
-        if (el.tagName !== 'INPUT' || (el.type || '').toLowerCase() !== 'password') return;
-        if (isPasskeyAutocompleteField(el)) return;
-        if (formHasPasskeyField(el.closest('form'))) return;
-        if (isVisible(el) && !el.disabled && !el.readOnly) hit = el;
+        if (!isPasswordLikeInput(el)) return;
+        if (isVisible(el) && !el.readOnly) hit = el;
       });
       return hit;
     }
@@ -229,7 +250,7 @@ export function buildPasswordPickerScript(
           if (el === pass) break;
           var ty = (el.type || '').toLowerCase();
           if (ty === 'hidden' || ty === 'submit' || ty === 'button' || ty === 'checkbox' || ty === 'radio' || ty === 'file' || el.disabled) continue;
-          if (ty === 'password') continue;
+          if (isPasswordLikeInput(el)) continue;
           before.push(el);
         }
         if (before.length) {
@@ -240,14 +261,14 @@ export function buildPasswordPickerScript(
       }
       var q = form ? form.querySelector.bind(form) : document.querySelector.bind(document);
       var byName = q('input[autocomplete="username"],input[autocomplete="email"]');
-      if (byName && byName !== pass && byName.type !== 'password' && isVisible(byName) && !byName.readOnly) return byName;
+      if (byName && byName !== pass && !isPasswordLikeInput(byName) && isVisible(byName) && !byName.readOnly) return byName;
       var email = q('input[type="email"]');
       if (email && email !== pass && isVisible(email) && !email.readOnly) return email;
       var scope = form || document;
       var texts = scope.querySelectorAll('input[type="text"],input[type="tel"],input:not([type])');
       for (var j = 0; j < texts.length; j++) {
         var t = texts[j];
-        if (t === pass || t.type === 'password') continue;
+        if (t === pass || isPasswordLikeInput(t)) continue;
         if (!isVisible(t) || t.readOnly) continue;
         var nm = (t.name || '').toLowerCase();
         var id = (t.id || '').toLowerCase();
@@ -255,9 +276,26 @@ export function buildPasswordPickerScript(
       }
       for (var k = 0; k < texts.length; k++) {
         var t2 = texts[k];
-        if (t2 !== pass && t2.type !== 'password' && isVisible(t2) && !t2.readOnly) return t2;
+        if (t2 !== pass && !isPasswordLikeInput(t2) && isVisible(t2) && !t2.readOnly) return t2;
       }
       return null;
+    }
+    function findBestUserInPassRoot(pass) {
+      if (!pass) return null;
+      var root = pass.getRootNode();
+      var rootEl = root.nodeType === 11 ? root : document.documentElement;
+      var best = null;
+      var bestScore = 0;
+      forEachElementDeep(rootEl, function(inp) {
+        if (inp.tagName !== 'INPUT') return;
+        if (inp === pass || isPasswordLikeInput(inp)) return;
+        var sc = scoreUserCandidate(inp);
+        if (sc > bestScore) {
+          bestScore = sc;
+          best = inp;
+        }
+      });
+      return bestScore >= 8 ? best : null;
     }
     function findBestUserGlobal() {
       var best = null;
@@ -267,19 +305,19 @@ export function buildPasswordPickerScript(
         var sc = scoreUserCandidate(inp);
         if (sc > bestScore) { bestScore = sc; best = inp; }
       });
-      return bestScore >= 18 ? best : null;
+      return bestScore >= 8 ? best : null;
     }
     var anchorEl = findMarkedAnchorEl(ANCHOR);
     if (anchorEl) anchorEl.removeAttribute(ANCHOR);
     var vPass0 = findVisiblePassword();
     var vUser0 = null;
-    if (anchorField === 'username' && anchorEl && anchorEl.tagName === 'INPUT' && (anchorEl.type || '').toLowerCase() !== 'password') {
+    if (anchorField === 'username' && anchorEl && anchorEl.tagName === 'INPUT' && !isPasswordLikeInput(anchorEl)) {
       vUser0 = anchorEl;
     } else if (
       anchorField === 'password' &&
       anchorEl &&
       anchorEl.tagName === 'INPUT' &&
-      (anchorEl.type || '').toLowerCase() === 'password' &&
+      isPasswordLikeInput(anchorEl) &&
       isVisible(anchorEl) &&
       !anchorEl.disabled
     ) {
@@ -309,36 +347,15 @@ export function buildPasswordPickerScript(
       if (!c) return;
       var vPass = findVisiblePassword();
       var vUser = findUserForPass(vPass);
+      if (!vUser && vPass) vUser = findBestUserInPassRoot(vPass);
       if (!vUser) vUser = findBestUserGlobal();
-      var onlyUser = vUser && (!vPass || !isVisible(vPass));
-      var onlyPass = vPass && (!vUser || !isVisible(vUser) || vUser.readOnly);
-      if (onlyUser && c.username) {
+      if (vUser && c.username && !vUser.readOnly && isVisible(vUser)) {
         setNativeInputValue(vUser, c.username);
         dispatchFilledInput(vUser);
-        return;
       }
-      if (onlyPass && c.password) {
+      if (vPass && c.password && isVisible(vPass) && !vPass.readOnly) {
         setNativeInputValue(vPass, c.password);
         dispatchFilledInput(vPass);
-        return;
-      }
-      if (vPass && vUser && !onlyUser && !onlyPass) {
-        if (c.username && !vUser.readOnly) {
-          setNativeInputValue(vUser, c.username);
-          dispatchFilledInput(vUser);
-        }
-        if (c.password) {
-          setNativeInputValue(vPass, c.password);
-          dispatchFilledInput(vPass);
-        }
-        return;
-      }
-      if (vPass && c.password) {
-        setNativeInputValue(vPass, c.password);
-        dispatchFilledInput(vPass);
-      } else if (vUser && c.username && !vUser.readOnly) {
-        setNativeInputValue(vUser, c.username);
-        dispatchFilledInput(vUser);
       }
     }
     function maskDots(n) {

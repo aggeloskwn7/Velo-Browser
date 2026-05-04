@@ -107,10 +107,10 @@ export const IPC = {
   internalAutoUpdateQuitAndInstall: 'velo:internal:auto-update:quit-and-install',
 
   internalPasswordVaultExists: 'velo:internal:password-vault:exists',
-  internalPasswordVaultCreate: 'velo:internal:password-vault:create',
-  internalPasswordVaultUnlock: 'velo:internal:password-vault:unlock',
-  internalPasswordVaultLock: 'velo:internal:password-vault:lock',
+  internalPasswordVaultNeedsMigration: 'velo:internal:password-vault:needs-migration',
+  internalPasswordVaultMigrate: 'velo:internal:password-vault:migrate',
   internalPasswordVaultUnlocked: 'velo:internal:password-vault:unlocked',
+  internalPasswordVaultOsKeyAvailable: 'velo:internal:password-vault:os-key-available',
   internalPasswordVaultList: 'velo:internal:password-vault:list',
   internalPasswordVaultDelete: 'velo:internal:password-vault:delete',
   internalPasswordVaultImport: 'velo:internal:password-vault:import',
@@ -269,7 +269,6 @@ export type PasswordBarState =
       domain: string
       username: string
       password: string
-      vaultLocked: boolean
     }
 
 
@@ -279,6 +278,9 @@ export type AdblockToastPayload = {
   suggestSiteFix?: boolean
   
   pageHostname?: string
+  
+  /** Shorter dismiss when the blocking happened in a background tab */
+  quiet?: boolean
 }
 
 

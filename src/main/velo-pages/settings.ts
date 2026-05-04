@@ -165,8 +165,32 @@ function panelDownloadPreferences(): string {
 
 function panelPrivacy(): string {
   return `<h2 class="vp-set-h">Privacy</h2>
-<p class="vp-set-note">Control how Velo filters ads and trackers. The default is <strong>Off</strong>. Higher levels load larger filter lists, but Velo avoids blocking or altering first-party requests (same site), WebSockets, and never injects filter-driven CSP into pages — add a hostname to the allowlist if something still breaks.</p>
+<div class="vp-privacy-adblock-warning" role="alert">
+  <div class="vp-privacy-adblock-warning__title">EXPERIMENTAL FEATURE</div>
+  <p class="vp-privacy-adblock-warning__body">This feature is being developed currently, and is not yet ready. It may or may not cause breakage on major sites. Would not recommend using it until fully tested.</p>
+</div>
 <style>
+  .vp-privacy-adblock-warning {
+    margin: 0 0 1.15rem 0;
+    padding: 1rem 1.15rem;
+    border-radius: 10px;
+    border: 2px solid color-mix(in srgb, var(--danger, #b71c1c) 88%, var(--border));
+    background: color-mix(in srgb, var(--danger, #b71c1c) 14%, var(--card));
+    box-shadow: 0 2px 0 color-mix(in srgb, var(--danger, #b71c1c) 22%, transparent);
+  }
+  .vp-privacy-adblock-warning__title {
+    margin: 0 0 0.5rem 0;
+    font-size: 0.875rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    color: var(--danger, #b71c1c);
+  }
+  .vp-privacy-adblock-warning__body {
+    margin: 0;
+    font-size: 0.95rem;
+    line-height: 1.55;
+    color: var(--fg);
+  }
   .vp-adblock-compose { max-width: 560px; margin-top: 0.9rem; }
   .vp-adblock-compose-label {
     display: block;
@@ -310,7 +334,7 @@ function panelPrivacy(): string {
   <div class="vp-set-row">
     <div class="vp-set-row__text">
       <div class="vp-set-row__title" id="adblock-level-label">Ad blocking</div>
-      <p class="vp-set-row__desc"><strong>Off</strong> — no blocking. <strong>Low</strong> — EasyList cosmetics only (hide common ad placeholders); no network requests are cancelled. <strong>Medium</strong> — Ghostery-style ads + tracking lists with safe network rules (first-party and WebSocket traffic always allowed; no filter CSP). <strong>High</strong> — extra strict lists with the same safety rules as Medium. Third-party hosts that look like ads/tracking can still be blocked; some complex sites may need the allowlist.</p>
+      <p class="vp-set-row__desc"><strong>Off</strong> — default; read the warning above before enabling. <strong>Low</strong> — ads-only lists, very conservative network blocking. <strong>Medium</strong> — ads + trackers; still uses safety rules, but experimental — sites may still misbehave. <strong>High</strong> — strongest blocking (including annoyances); highest risk of breakage — lower the level, turn Off, or add an allowlist entry if needed.</p>
     </div>
     <div class="vp-set-row__control">
       <select id="adblock-level" aria-labelledby="adblock-level-label">
@@ -324,7 +348,7 @@ function panelPrivacy(): string {
 </div>
 <div class="card" style="margin-top:1rem">
   <h3 class="vp-set-h" style="font-size:1rem;margin:0 0 0.3rem">Ad block allowlist</h3>
-  <p class="vp-set-note" style="margin-top:0">Domains you add here are not filtered by the ad blocker — useful when a site <em>still</em> misbehaves under Medium or High.</p>
+  <p class="vp-set-note" style="margin-top:0">Skip filtering entirely for these hostnames — mainly for <strong>High</strong> if a page still glitches, or cosmetic rules hide something important.</p>
   <div class="vp-adblock-compose">
     <label class="vp-adblock-compose-label" for="adblock-allow-input">Exclude a site</label>
     <div class="vp-adblock-compose-row">
@@ -412,7 +436,7 @@ function panelPrivacy(): string {
 
 function panelPasswordManager(): string {
   return `<h2 class="vp-set-h">Password Manager & Autofill</h2>
-<p class="vp-set-note">Velo encrypts saved passwords on disk. Use a strong passphrase; you will need it to unlock this page and to save new passwords while browsing. Enable autofill below (on focus and/or Ctrl+Shift+L) while the vault is unlocked.</p>
+<p class="vp-set-note">Saved passwords are encrypted on disk. The encryption key is protected by your operating account (Windows, macOS Keychain, or Linux secret service where available). No separate vault passphrase.</p>
 <style>
   .vp-pw-field { display:block; margin:0.5rem 0; max-width:420px; }
   .vp-pw-field input { width:100%; margin-top:0.25rem; padding:0.45rem 0.5rem; box-sizing:border-box; }
@@ -432,55 +456,24 @@ function panelPasswordManager(): string {
   .vp-pw-search::placeholder { color:var(--muted); }
 </style>
 <div class="card">
-  <div id="vp-pw-setup" style="display:none">
-    <p style="margin:0 0 0.75rem">Create your vault passphrase (minimum 4 characters).</p>
-    <p id="vp-pw-setup-err" style="display:none;margin:0 0 0.5rem;color:var(--danger,#c62828);font-size:0.9rem"></p>
-    <label class="vp-pw-field">Passphrase<input type="password" id="vp-pw-new1" autocomplete="off" /></label>
-    <label class="vp-pw-field">Confirm<input type="password" id="vp-pw-new2" autocomplete="off" /></label>
-    <div class="vp-set-row" style="margin-top:0.5rem">
-      <div class="vp-set-row__text">
-        <div class="vp-set-row__title" id="vp-pw-remember-create-label">Remember on this device</div>
-        <p class="vp-set-row__desc">Unlock the vault automatically when you open Velo (stored with OS secure storage for this user only).</p>
-      </div>
-      <div class="vp-set-row__control">
-        <input type="checkbox" class="vp-switch" id="vp-pw-remember-create" aria-labelledby="vp-pw-remember-create-label" />
-      </div>
-    </div>
-    <div class="vp-pw-actions"><button type="button" id="vp-pw-create">Create vault</button></div>
+  <div id="vp-pw-unavailable" style="display:none">
+    <p id="vp-pw-os-msg" class="vp-set-note" style="margin:0"></p>
   </div>
-  <div id="vp-pw-locked" style="display:none">
-    <label class="vp-pw-field">Passphrase<input type="password" id="vp-pw-unlock-pass" autocomplete="current-password" /></label>
-    <div class="vp-set-row" style="margin-top:0.5rem">
-      <div class="vp-set-row__text">
-        <div class="vp-set-row__title" id="vp-pw-remember-unlock-label">Remember on this device</div>
-        <p class="vp-set-row__desc">Skip this unlock step next time you start Velo (same secure storage as above).</p>
-      </div>
-      <div class="vp-set-row__control">
-        <input type="checkbox" class="vp-switch" id="vp-pw-remember-unlock" aria-labelledby="vp-pw-remember-unlock-label" />
-      </div>
-    </div>
-    <div class="vp-pw-actions"><button type="button" id="vp-pw-unlock">Unlock</button></div>
-    <p id="vp-pw-unlock-err" style="margin:0.5rem 0 0;color:var(--danger,#c62828);font-size:0.9rem"></p>
+  <div id="vp-pw-migrate" style="display:none">
+    <p class="vp-set-note" style="margin:0 0 0.75rem">Your passwords were saved with an older Velo vault. Enter your previous vault passphrase once to move them to the new OS-protected storage.</p>
+    <p id="vp-pw-migrate-err" style="display:none;margin:0 0 0.5rem;color:var(--danger,#c62828);font-size:0.9rem"></p>
+    <label class="vp-pw-field">Previous passphrase<input type="password" id="vp-pw-migrate-pass" autocomplete="current-password" /></label>
+    <div class="vp-pw-actions"><button type="button" id="vp-pw-migrate-btn">Migrate vault</button></div>
   </div>
   <div id="vp-pw-main" style="display:none">
     <div class="vp-pw-actions">
-      <button type="button" id="vp-pw-lock">Lock</button>
       <button type="button" id="vp-pw-import">Import CSV…</button>
       <button type="button" id="vp-pw-export">Export CSV…</button>
     </div>
     <div class="vp-set-row" style="margin-top:1rem">
       <div class="vp-set-row__text">
-        <div class="vp-set-row__title" id="vp-pw-remember-device-label">Remember on this device</div>
-        <p class="vp-set-row__desc">When off, you enter your passphrase after each launch and Velo forgets the saved device key.</p>
-      </div>
-      <div class="vp-set-row__control">
-        <input type="checkbox" class="vp-switch" id="vp-pw-remember-device" aria-labelledby="vp-pw-remember-device-label" />
-      </div>
-    </div>
-    <div class="vp-set-row" style="margin-top:1rem">
-      <div class="vp-set-row__text">
         <div class="vp-set-row__title" id="vp-pw-offer-label">Offer to save passwords</div>
-        <p class="vp-set-row__desc">Show the save bar on HTTPS pages when you sign in (vault must be unlocked).</p>
+        <p class="vp-set-row__desc">Show the save bar on HTTPS pages when you sign in with new credentials.</p>
       </div>
       <div class="vp-set-row__control">
         <input type="checkbox" class="vp-switch" id="vp-pw-offer" aria-labelledby="vp-pw-offer-label" />
@@ -489,7 +482,7 @@ function panelPasswordManager(): string {
     <div class="vp-set-row">
       <div class="vp-set-row__text">
         <div class="vp-set-row__title" id="vp-pw-autofill-focus-label">Autofill on password focus</div>
-        <p class="vp-set-row__desc">When the vault is unlocked, filling a matching site after you focus a password field (only if the field is still empty).</p>
+        <p class="vp-set-row__desc">Fill a matching saved login after you focus a password field (only if the field is still empty).</p>
       </div>
       <div class="vp-set-row__control">
         <input type="checkbox" class="vp-switch" id="vp-pw-autofill-focus" aria-labelledby="vp-pw-autofill-focus-label" />
@@ -498,7 +491,7 @@ function panelPasswordManager(): string {
     <div class="vp-set-row">
       <div class="vp-set-row__text">
         <div class="vp-set-row__title" id="vp-pw-autofill-hotkey-label">Autofill hotkey (Ctrl+Shift+L)</div>
-        <p class="vp-set-row__desc">When the vault is unlocked, fills the first saved login for this site; can overwrite fields.</p>
+        <p class="vp-set-row__desc">Fill the first saved login for this site; can overwrite fields.</p>
       </div>
       <div class="vp-set-row__control">
         <input type="checkbox" class="vp-switch" id="vp-pw-autofill-hotkey" aria-labelledby="vp-pw-autofill-hotkey-label" />
@@ -517,7 +510,7 @@ function panelPasswordManager(): string {
   var api = window.veloPage;
   function q(id){ return document.getElementById(id); }
   function show(which){
-    ['vp-pw-setup','vp-pw-locked','vp-pw-main'].forEach(function(id){
+    ['vp-pw-unavailable','vp-pw-migrate','vp-pw-main'].forEach(function(id){
       var el = q(id); if (el) el.style.display = id === which ? 'block' : 'none';
     });
   }
@@ -527,10 +520,6 @@ function panelPasswordManager(): string {
     q('vp-pw-offer').checked = s.passwordOfferToSave;
     q('vp-pw-autofill-focus').checked = s.passwordAutofillOnFocus;
     q('vp-pw-autofill-hotkey').checked = s.passwordAutofillHotkey;
-    var rem = s.passwordVaultRememberDevice !== false;
-    var rc = q('vp-pw-remember-create'); if (rc) rc.checked = rem;
-    var ru = q('vp-pw-remember-unlock'); if (ru) ru.checked = rem;
-    var rd = q('vp-pw-remember-device'); if (rd) rd.checked = rem;
   }
   var pwEntriesCache = [];
   function searchTokens(){
@@ -644,81 +633,51 @@ function panelPasswordManager(): string {
     renderNever(s.passwordsNeverSaveDomains || []);
     await renderList();
   }
-  function clearSetupErr(){
-    var er = q('vp-pw-setup-err');
+  function showMigrateErr(msg){
+    var er = q('vp-pw-migrate-err');
     if (!er) return;
-    er.style.display = 'none';
-    er.textContent = '';
-  }
-  function showSetupErr(msg){
-    var er = q('vp-pw-setup-err');
-    if (!er) return;
-    er.textContent = msg;
-    er.style.display = 'block';
+    er.textContent = msg || '';
+    er.style.display = msg ? 'block' : 'none';
   }
   async function boot(){
     if (!api) return;
     await refreshToggles();
+    var osOk = await api.passwordVaultOsKeyAvailable();
+    var needs = await api.passwordVaultNeedsMigration();
     var exists = await api.passwordVaultExists();
-    var unlocked = await api.passwordVaultUnlocked();
-    if (!exists) {
-      clearSetupErr();
-      show('vp-pw-setup');
+    if (needs) {
+      if (!osOk) {
+        show('vp-pw-unavailable');
+        q('vp-pw-os-msg').textContent = 'Migrating your vault requires OS secure storage (e.g. Windows Data Protection, macOS Keychain, or a Linux secret service). This system does not provide it.';
+        return;
+      }
+      show('vp-pw-migrate');
+      showMigrateErr('');
       return;
     }
-    if (!unlocked) {
-      show('vp-pw-locked');
-      q('vp-pw-unlock-err').textContent = '';
+    if (!osOk && !exists) {
+      show('vp-pw-unavailable');
+      q('vp-pw-os-msg').textContent = 'Saving passwords requires OS secure storage. It is not available on this system or session.';
+      return;
+    }
+    if (!await api.passwordVaultUnlocked()) {
+      show('vp-pw-unavailable');
+      q('vp-pw-os-msg').textContent = 'The password vault could not be opened. If you moved or restored data files, ensure password-vault-dek.bin is present with passwords.vault.';
       return;
     }
     await renderMain();
   }
-  q('vp-pw-create').onclick = async function(){
+  q('vp-pw-migrate-btn').onclick = async function(){
     if (!api) return;
-    clearSetupErr();
-    var el1 = q('vp-pw-new1');
-    var el2 = q('vp-pw-new2');
-    var a = el1 ? el1.value : '';
-    var b = el2 ? el2.value : '';
-    if (a.length < 4) {
-      showSetupErr('Passphrase must be at least 4 characters.');
-      requestAnimationFrame(function(){ try { el1.focus(); el1.select(); } catch (x) {} });
-      return;
-    }
-    if (a !== b) {
-      showSetupErr('Passphrases do not match.');
-      requestAnimationFrame(function(){ try { el2.focus(); el2.select(); } catch (x) {} });
-      return;
-    }
+    showMigrateErr('');
+    var passEl = q('vp-pw-migrate-pass');
     try {
-      var remember = q('vp-pw-remember-create') ? q('vp-pw-remember-create').checked : true;
-      await api.passwordVaultCreate(a, remember);
-      if (el1) el1.value = '';
-      if (el2) el2.value = '';
-      clearSetupErr();
+      await api.passwordVaultMigrate(passEl ? passEl.value : '');
+      if (passEl) passEl.value = '';
       await boot();
     } catch (err) {
-      var msg = err && err.message ? String(err.message) : 'Could not create vault';
-      showSetupErr(msg);
-      requestAnimationFrame(function(){ try { el1.focus(); el1.select(); } catch (x) {} });
+      showMigrateErr(err && err.message ? String(err.message) : 'Migration failed. Check your passphrase.');
     }
-  };
-  q('vp-pw-unlock').onclick = async function(){
-    if (!api) return;
-    q('vp-pw-unlock-err').textContent = '';
-    try {
-      var remU = q('vp-pw-remember-unlock') ? q('vp-pw-remember-unlock').checked : true;
-      await api.passwordVaultUnlock(q('vp-pw-unlock-pass').value, remU);
-      q('vp-pw-unlock-pass').value = '';
-      await boot();
-    } catch (err) {
-      q('vp-pw-unlock-err').textContent = 'Could not unlock. Check your passphrase.';
-    }
-  };
-  q('vp-pw-lock').onclick = async function(){
-    if (!api) return;
-    await api.passwordVaultLock();
-    await boot();
   };
   q('vp-pw-offer').onchange = async function(){
     if (!api) return;
@@ -731,12 +690,6 @@ function panelPasswordManager(): string {
   q('vp-pw-autofill-hotkey').onchange = async function(){
     if (!api) return;
     await api.setSettings({ passwordAutofillHotkey: q('vp-pw-autofill-hotkey').checked });
-  };
-  var rdEl = q('vp-pw-remember-device');
-  if (rdEl) rdEl.onchange = async function(){
-    if (!api) return;
-    await api.setSettings({ passwordVaultRememberDevice: rdEl.checked });
-    await refreshToggles();
   };
   q('vp-pw-import').onclick = async function(){
     if (!api) return;

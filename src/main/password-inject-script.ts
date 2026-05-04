@@ -40,7 +40,7 @@ export function buildPasswordInjectScript(): string {
   }
   var lastOffer = '';
   function maybeOffer(passEl){
-    if (!passEl || passEl.type !== 'password') return;
+    if (!passEl || !isPasswordLikeInput(passEl)) return;
     var user = findUser(passEl);
     var pass = passEl.value || '';
     if (!pass || pass.length < 1) return;
@@ -60,20 +60,21 @@ export function buildPasswordInjectScript(): string {
     var ac = (el.getAttribute('autocomplete') || '').toLowerCase();
     return ac.indexOf('webauthn') >= 0;
   }
-  function formHasPasskeyField(form){
-    if (!form || typeof form.querySelectorAll !== 'function') return false;
-    var ins = form.querySelectorAll('input,textarea');
-    for (var i = 0; i < ins.length; i++) {
-      var ac = (ins[i].getAttribute('autocomplete') || '').toLowerCase();
-      if (ac.indexOf('webauthn') >= 0) return true;
-    }
-    return false;
-  }function skipUsernameAutofillForPasskeys(el){
+  function skipUsernameAutofillForPasskeys(el){
     if (!isPasskeyAutocompleteField(el)) return false;
     var ac = (el.getAttribute('autocomplete') || '').toLowerCase();
     if (ac.indexOf('username') >= 0 || ac.indexOf('email') >= 0) return false;
     if ((el.type || '').toLowerCase() === 'email') return false;
     return true;
+  }
+  function isPasswordLikeInput(el){
+    if (!el || el.tagName !== 'INPUT' || el.disabled) return false;
+    if (isPasskeyAutocompleteField(el)) return false;
+    var ty = (el.type || '').toLowerCase();
+    var ac = (el.getAttribute('autocomplete') || '').toLowerCase();
+    if (ty === 'password') return true;
+    if (ac === 'current-password' && ty !== 'hidden') return true;
+    return false;
   }
   function isUserField(el){
     if (!el || el.tagName !== 'INPUT' || el.disabled || el.readOnly) return false;
@@ -104,9 +105,9 @@ export function buildPasswordInjectScript(): string {
   document.addEventListener('focusin', function(ev){
     var el = resolveInputFromEvent(ev);
     if (!el) return;
-    if (el.type === 'password') {
+    if (isPasswordLikeInput(el)) {
       debounceOffer(el);
-      if (!isPasskeyAutocompleteField(el) && !formHasPasskeyField(el.form)) debounceAutoFill(el, 'password');
+      if (!isPasskeyAutocompleteField(el)) debounceAutoFill(el, 'password');
     } else if (isUserField(el)) {
       if (!skipUsernameAutofillForPasskeys(el)) debounceAutoFill(el, 'username');
     }
@@ -114,7 +115,7 @@ export function buildPasswordInjectScript(): string {
   document.addEventListener('change', function(ev){
     var el = resolveInputFromEvent(ev);
     if (!el || el.tagName !== 'INPUT') return;
-    if (el.type === 'password') debounceOffer(el);
+    if (isPasswordLikeInput(el)) debounceOffer(el);
   }, true);
   document.addEventListener('submit', function(ev){
     var f = ev.target;

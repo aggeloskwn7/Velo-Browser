@@ -21,7 +21,7 @@ import {
 } from './downloads-store.js'
 import { IPC } from '../shared/ipc.js'
 import { getSettings, readBootUseHardwareAcceleration } from './settings-store.js'
-import { tryAutoUnlockVaultFromDeviceSetting } from './password-vault-remember.js'
+import * as passwordVault from './password-vault.js'
 import { initVeloAutoUpdater } from './auto-updater.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
@@ -132,6 +132,7 @@ if (!gotSingleInstanceLock) {
   ])
 
   app.on('before-quit', () => {
+    passwordVault.shutdownVaultSession()
     flushDownloadsToDisk()
   })
 
@@ -147,12 +148,12 @@ if (!gotSingleInstanceLock) {
         console.warn('[velo] configureWebAuthn failed', err)
       }
     }
-    registerIpcHandlers()
     try {
-      tryAutoUnlockVaultFromDeviceSetting(getSettings().passwordVaultRememberDevice)
+      passwordVault.ensureVaultReady()
     } catch (err) {
-      console.warn('[velo] password vault auto-unlock', err)
+      console.warn('[velo] password vault init', err)
     }
+    registerIpcHandlers()
     setApplicationMenu()
     await initDownloadsStore()
 

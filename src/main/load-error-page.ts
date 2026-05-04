@@ -1,6 +1,8 @@
 
 
 const ERR_ABORTED = -3
+/** Chromium net::ERR_BLOCKED_BY_CLIENT — navigation or subresource blocked (e.g. Velo ad blocker). */
+const ERR_BLOCKED_BY_CLIENT = -20
 
 export function isLoadFailureIgnored(errorCode: number): boolean {
   return errorCode === ERR_ABORTED
@@ -21,10 +23,22 @@ function escapeHtml(s: string): string {
 function errorCopy(
   errorCode: number,
   errorDescription: string
-): { title: string; body: string; codeLabel: string } {
+): { title: string; body: string; codeLabel: string; adblockBlocked?: boolean } {
   const desc = (errorDescription || '').trim()
   const errToken = /^ERR_[A-Z0-9_]+$/.test(desc) ? desc : ''
 
+  if (
+    desc.includes('ERR_BLOCKED_BY_CLIENT') ||
+    errorCode === ERR_BLOCKED_BY_CLIENT ||
+    errorCode === -20
+  ) {
+    return {
+      title: 'Blocked by the ad blocker',
+      body: "Velo's ad blocker stopped this navigation. That can happen when a strict filter matches the main page request. Try lowering the block level, or add this site's hostname under Privacy → Ad block allowlist.",
+      codeLabel: errToken || 'ERR_BLOCKED_BY_CLIENT',
+      adblockBlocked: true
+    }
+  }
   if (desc.includes('ERR_CONNECTION_REFUSED') || errorCode === -102) {
     return {
       title: "This site can't be reached",
@@ -87,13 +101,18 @@ export function buildNetworkErrorDataUrl(
   errorCode: number,
   errorDescription: string
 ): string {
-  const { title, body, codeLabel } = errorCopy(errorCode, errorDescription)
+  const copy = errorCopy(errorCode, errorDescription)
+  const { title, body, codeLabel, adblockBlocked } = copy
   const urlDisplay = escapeHtml(validatedURL)
   const titleE = escapeHtml(title)
   const bodyE = escapeHtml(body)
   const codeE = escapeHtml(codeLabel)
-  const tip =
-    'Check that the address is correct and the service is running. Reload to try again.'
+  const tip = adblockBlocked
+    ? 'Open Privacy settings to adjust blocking or exclude this site.'
+    : 'Check that the address is correct and the service is running. Reload to try again.'
+  const adblockExtra = adblockBlocked
+    ? `<p class="detail"><a class="velo-link" href="velo://settings/privacy">Open Privacy &amp; ad blocking</a></p>`
+    : ''
 
   const html = `<!DOCTYPE html>
 <html lang="en">
@@ -163,7 +182,12 @@ export function buildNetworkErrorDataUrl(
     cursor: pointer;
   }
   button:hover { background: #aecbfa; }
-  button:active { background: #8ab4f8; }
+  a.velo-link {
+    color: #8ab4f8;
+    font-weight: 500;
+    text-decoration: none;
+  }
+  a.velo-link:hover { text-decoration: underline; }
 </style>
 </head>
 <body>
@@ -175,6 +199,7 @@ export function buildNetworkErrorDataUrl(
     <h1>${titleE}</h1>
     <div class="url">${urlDisplay}</div>
     <p class="detail">${bodyE}</p>
+    ${adblockExtra}
     <p class="tip">${escapeHtml(tip)}</p>
     <div class="code">${codeE}</div>
     <button type="button" id="reload">Reload</button>

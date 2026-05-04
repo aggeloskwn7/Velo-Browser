@@ -764,7 +764,7 @@ export default function App(): JSX.Element {
         adblockToastDismissRef.current = null
       }
       setAdblockToast(payload)
-      const ms = payload.suggestSiteFix ? 10_500 : 4200
+      const ms = payload.suggestSiteFix ? 10_500 : payload.quiet ? 2800 : 4200
       adblockToastDismissRef.current = setTimeout(() => {
         setAdblockToast(null)
         adblockToastDismissRef.current = null
@@ -1851,11 +1851,6 @@ export default function App(): JSX.Element {
       {passwordBar.open ? (
         <div className="velo-password-bar no-drag" role="region" aria-label="Save password">
           <span className="velo-password-bar-msg">Save password for {passwordBar.domain}?</span>
-          {passwordBar.vaultLocked ? (
-            <span className="velo-password-bar-locked">
-              Unlock your vault in Settings → Password Manager & Autofill to save.
-            </span>
-          ) : null}
           <label className="velo-password-bar-label">
             <span>Username</span>
             <input
@@ -1881,7 +1876,6 @@ export default function App(): JSX.Element {
             <button
               type="button"
               className="velo-password-bar-primary"
-              disabled={passwordBar.vaultLocked}
               onClick={() => {
                 if (!passwordBar.open) return
                 void (async () => {

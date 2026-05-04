@@ -18,7 +18,7 @@ import { applyAdBlockLevel } from './adblock.js'
 import { resolveNavigation } from './navigation.js'
 import { getLastTabCommittedUrl, recordTabCommittedUrl } from './velo-page-origin.js'
 import * as vault from './password-vault.js'
-import { clearDeviceWrappedPassphrase, saveDeviceWrappedPassphrase } from './password-vault-remember.js'
+import { clearDeviceWrappedPassphrase } from './password-vault-remember.js'
 import { buildPasswordPickerScript, type PasswordAnchorField } from './password-fill-script.js'
 import { parsePasswordCsv, formatPasswordCsv } from './password-csv.js'
 import { fetchOmnibarSuggestionsForShell } from './omnibar-suggest-fetch.js'
@@ -632,7 +632,8 @@ export function registerIpcHandlers(): void {
     const d = vault.normalizeDomain(msg.domain)
     if (!d) return { ok: true as const, ignored: true }
     if (s.passwordsNeverSaveDomains.includes(d)) return { ok: true as const, ignored: true }
-    if (vault.isUnlocked() && vault.entryExists(d, msg.username, msg.password)) {
+    if (!vault.isUnlocked()) return { ok: true as const, ignored: true }
+    if (vault.entryExists(d, msg.username, msg.password)) {
       return { ok: true as const, ignored: true }
     }
     if (m.getActiveTabId() !== tabId) return { ok: true as const, ignored: true }
@@ -642,8 +643,7 @@ export function registerIpcHandlers(): void {
       tabId,
       domain: d,
       username: msg.username,
-      password: msg.password,
-      vaultLocked: !vault.isUnlocked()
+      password: msg.password
     }
     m.publishPasswordBarState(bar)
     return { ok: true as const, ignored: false }
@@ -713,59 +713,36 @@ export function registerIpcHandlers(): void {
     return vault.vaultFileExists()
   })
 
+  ipcMain.handle(IPC.internalPasswordVaultNeedsMigration, (e) => {
+    assertVeloPage(e.sender)
+    return vault.vaultNeedsMigration()
+  })
+
+  ipcMain.handle(IPC.internalPasswordVaultMigrate, (e, raw) => {
+    assertVeloPage(e.sender)
+    const { passphrase } = z
+      .object({
+        passphrase: z.string().min(1).max(1024)
+      })
+      .parse(raw)
+    vault.migrateFromV1Passphrase(passphrase)
+    clearDeviceWrappedPassphrase()
+    return { ok: true as const }
+  })
+
+  ipcMain.handle(IPC.internalPasswordVaultOsKeyAvailable, (e) => {
+    assertVeloPage(e.sender)
+    return vault.isOsKeyStorageAvailable()
+  })
+
   ipcMain.handle(IPC.internalPasswordVaultUnlocked, (e) => {
     assertVeloPage(e.sender)
     return vault.isUnlocked()
   })
 
-  ipcMain.handle(IPC.internalPasswordVaultCreate, (e, raw) => {
-    assertVeloPage(e.sender)
-    const { passphrase, rememberOnDevice } = z
-      .object({
-        passphrase: z.string().min(4).max(1024),
-        rememberOnDevice: z.boolean().optional().default(true)
-      })
-      .parse(raw)
-    vault.createVault(passphrase)
-    if (rememberOnDevice) {
-      saveDeviceWrappedPassphrase(passphrase)
-      const next = settings.setSettings({ passwordVaultRememberDevice: true })
-      afterSettingsPersisted({ passwordVaultRememberDevice: true }, next)
-    } else {
-      const next = settings.setSettings({ passwordVaultRememberDevice: false })
-      afterSettingsPersisted({ passwordVaultRememberDevice: false }, next)
-    }
-    return { ok: true as const }
-  })
-
-  ipcMain.handle(IPC.internalPasswordVaultUnlock, (e, raw) => {
-    assertVeloPage(e.sender)
-    const { passphrase, rememberOnDevice } = z
-      .object({
-        passphrase: z.string().min(1).max(1024),
-        rememberOnDevice: z.boolean().optional().default(true)
-      })
-      .parse(raw)
-    vault.unlock(passphrase)
-    if (rememberOnDevice) {
-      saveDeviceWrappedPassphrase(passphrase)
-      const next = settings.setSettings({ passwordVaultRememberDevice: true })
-      afterSettingsPersisted({ passwordVaultRememberDevice: true }, next)
-    } else {
-      const next = settings.setSettings({ passwordVaultRememberDevice: false })
-      afterSettingsPersisted({ passwordVaultRememberDevice: false }, next)
-    }
-    return { ok: true as const }
-  })
-
-  ipcMain.handle(IPC.internalPasswordVaultLock, (e) => {
-    assertVeloPage(e.sender)
-    vault.lock()
-  })
-
   ipcMain.handle(IPC.internalPasswordVaultList, (e) => {
     assertVeloPage(e.sender)
-    if (!vault.isUnlocked()) throw new Error('vault locked')
+    if (!vault.isUnlocked()) throw new Error('Password vault is not available. Migrate in Settings if you upgraded from an older Velo.')
     return vault.listEntries()
   })
 

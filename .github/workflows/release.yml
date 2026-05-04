@@ -1,0 +1,128 @@
+# Build Velo for Windows, macOS, and Linux and attach installers to a GitHub Release.
+#
+# Usage:
+#   1. Bump "version" in package.json (and commit).
+#   2. Tag and push: git tag v1.0.2 && git push origin v1.0.2
+#
+# The tag should match the version (e.g. v1.0.2 ↔ 1.0.2 in package.json) so users and
+# electron-updater see a consistent version.
+#
+# Optional: run manually from Actions → "Release" → Run workflow (builds only; see
+# release job `if:` below — enable workflow_dispatch uploads by adjusting that guard).
+
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci
+
+      - name: Build Windows installer
+        run: npm run dist:win
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: velo-windows
+          path: release/
+
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci
+
+      - name: Build macOS (DMG + ZIP)
+        run: npm run dist:mac
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: velo-macos
+          path: release/
+
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci
+
+      - name: Build Linux AppImage
+        run: npm run dist:linux
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: velo-linux
+          path: release/
+
+  publish-release:
+    name: Publish GitHub Release
+    needs: [build-windows, build-macos, build-linux]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract release notes for this tag from CHANGELOG.md
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          if [ ! -f CHANGELOG.md ]; then
+            echo "Add a ## [$VERSION] section to CHANGELOG.md before tagging." > release_body.md
+          else
+            awk -v ver="$VERSION" '
+              $0 ~ "^## \\[" ver "\\]" { p=1; next }
+              p && $0 ~ "^## " { exit }
+              p { print }
+            ' CHANGELOG.md > release_body.md
+            if [ ! -s release_body.md ]; then
+              echo "No changelog section \`## [$VERSION]\` found. Update CHANGELOG.md and re-tag if needed." >> release_body.md
+            fi
+          fi
+          echo "--- Release notes (from CHANGELOG) ---"
+          cat release_body.md
+
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: List artifacts (debug)
+        run: find artifacts -type f | sort
+
+      - name: Create release and upload assets
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: false
+          body_path: release_body.md
+          generate_release_notes: true
+          files: artifacts/**/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

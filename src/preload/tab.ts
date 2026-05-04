@@ -114,18 +114,13 @@ const internal = {
   quitAndInstallUpdate: (): Promise<void> => ipcRenderer.invoke(IPC.internalAutoUpdateQuitAndInstall),
 
   passwordVaultExists: (): Promise<boolean> => ipcRenderer.invoke(IPC.internalPasswordVaultExists),
+  passwordVaultNeedsMigration: (): Promise<boolean> =>
+    ipcRenderer.invoke(IPC.internalPasswordVaultNeedsMigration),
+  passwordVaultOsKeyAvailable: (): Promise<boolean> =>
+    ipcRenderer.invoke(IPC.internalPasswordVaultOsKeyAvailable),
+  passwordVaultMigrate: (passphrase: string): Promise<{ ok: true }> =>
+    ipcRenderer.invoke(IPC.internalPasswordVaultMigrate, { passphrase }),
   passwordVaultUnlocked: (): Promise<boolean> => ipcRenderer.invoke(IPC.internalPasswordVaultUnlocked),
-  passwordVaultCreate: (passphrase: string, rememberOnDevice?: boolean): Promise<{ ok: true }> =>
-    ipcRenderer.invoke(IPC.internalPasswordVaultCreate, {
-      passphrase,
-      rememberOnDevice: rememberOnDevice !== false
-    }),
-  passwordVaultUnlock: (passphrase: string, rememberOnDevice?: boolean): Promise<{ ok: true }> =>
-    ipcRenderer.invoke(IPC.internalPasswordVaultUnlock, {
-      passphrase,
-      rememberOnDevice: rememberOnDevice !== false
-    }),
-  passwordVaultLock: (): Promise<void> => ipcRenderer.invoke(IPC.internalPasswordVaultLock),
   passwordVaultList: (): Promise<PasswordVaultEntryDto[]> => ipcRenderer.invoke(IPC.internalPasswordVaultList),
   passwordVaultDelete: (id: string): Promise<void> => ipcRenderer.invoke(IPC.internalPasswordVaultDelete, { id }),
   passwordVaultImport: (): Promise<{ imported: number }> => ipcRenderer.invoke(IPC.internalPasswordVaultImport),

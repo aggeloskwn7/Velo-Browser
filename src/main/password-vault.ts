@@ -1,17 +1,11 @@
-import { app } from 'electron'
-import {
-  createCipheriv,
-  createDecipheriv,
-  randomBytes,
-  randomUUID,
-  scryptSync,
-  timingSafeEqual
-} from 'node:crypto'
+import { app, safeStorage } from 'electron'
+import { createCipheriv, createDecipheriv, randomBytes, randomUUID, scryptSync } from 'node:crypto'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 const MAGIC = Buffer.from('VLPW')
-const VERSION = 1
+const VERSION_V1 = 1
+const VERSION_V2 = 2
 const SALT_LEN = 16
 const IV_LEN = 12
 const TAG_LEN = 16
@@ -20,9 +14,6 @@ const SCRYPT_R = 8
 const SCRYPT_P = 1
 const KEY_LEN = 32
 const AAD = Buffer.from('velo-pwm-v1', 'utf8')
-
-
-const IDLE_LOCK_MS = 15 * 60 * 1000
 
 export type PasswordVaultEntry = {
   id: string
@@ -37,35 +28,15 @@ type VaultPlain = {
   entries: PasswordVaultEntry[]
 }
 
-let lastActivity = 0
-let idleTimer: ReturnType<typeof setInterval> | null = null
 let entriesCache: PasswordVaultEntry[] | null = null
-
 let sessionKey: Buffer | null = null
 
 function vaultPath(): string {
   return join(app.getPath('userData'), 'passwords.vault')
 }
 
-function resetIdleTimer(): void {
-  lastActivity = Date.now()
-}
-
-function startIdleWatcher(): void {
-  if (idleTimer != null) return
-  idleTimer = setInterval(() => {
-    if (entriesCache == null || sessionKey == null) return
-    if (Date.now() - lastActivity >= IDLE_LOCK_MS) {
-      lock()
-    }
-  }, 30_000)
-}
-
-function stopIdleWatcher(): void {
-  if (idleTimer != null) {
-    clearInterval(idleTimer)
-    idleTimer = null
-  }
+function dekPath(): string {
+  return join(app.getPath('userData'), 'password-vault-dek.bin')
 }
 
 function deriveKey(passphrase: string, salt: Buffer): Buffer {
@@ -97,12 +68,35 @@ function decryptBlob(key: Buffer, blob: Buffer): string {
   return Buffer.concat([decipher.update(data), decipher.final()]).toString('utf8')
 }
 
-function touch(): void {
-  resetIdleTimer()
-}
-
+/** File on disk exists (v1 or v2). */
 export function vaultFileExists(): boolean {
   return existsSync(vaultPath())
+}
+
+/** OS-bound encryption available (required for v2). */
+export function isOsKeyStorageAvailable(): boolean {
+  try {
+    return safeStorage.isEncryptionAvailable()
+  } catch {
+    return false
+  }
+}
+
+function readFileVersion(): number | null {
+  if (!vaultFileExists()) return null
+  const raw = readFileSync(vaultPath())
+  if (raw.length < MAGIC.length + 1 || !raw.subarray(0, 4).equals(MAGIC)) return null
+  const v = raw[4]
+  return v === VERSION_V1 || v === VERSION_V2 ? v : null
+}
+
+/** Legacy passphrase vault on disk needs one-time migration. */
+export function vaultNeedsMigration(): boolean {
+  return readFileVersion() === VERSION_V1
+}
+
+export function vaultIsVersion2(): boolean {
+  return readFileVersion() === VERSION_V2
 }
 
 export function isUnlocked(): boolean {
@@ -115,56 +109,101 @@ export function lock(): void {
     sessionKey.fill(0)
     sessionKey = null
   }
-  stopIdleWatcher()
+}
+
+function writeV2File(inner: Buffer): void {
+  const out = Buffer.alloc(MAGIC.length + 1 + inner.length)
+  MAGIC.copy(out, 0)
+  out[MAGIC.length] = VERSION_V2
+  inner.copy(out, MAGIC.length + 1)
+  writeFileSync(vaultPath(), out)
 }
 
 function persist(): void {
   if (!sessionKey || !entriesCache) throw new Error('vault locked')
-  touch()
-  const raw = readFileSync(vaultPath())
-  if (raw.length < MAGIC.length + 1 + SALT_LEN) throw new Error('vault truncated')
-  const salt = Buffer.from(raw.subarray(5, 5 + SALT_LEN))
   const plain: VaultPlain = { entries: entriesCache }
   const body = JSON.stringify(plain)
   const inner = encryptBlob(sessionKey, body)
-  const out = Buffer.alloc(MAGIC.length + 1 + SALT_LEN + inner.length)
-  MAGIC.copy(out, 0)
-  out[MAGIC.length] = VERSION
-  salt.copy(out, MAGIC.length + 1)
-  inner.copy(out, MAGIC.length + 1 + SALT_LEN)
-  writeFileSync(vaultPath(), out)
+  writeV2File(inner)
 }
 
-export function createVault(passphrase: string): void {
-  if (vaultFileExists()) throw new Error('vault already exists')
-  if (passphrase.length < 4) throw new Error('passphrase too short')
-  lock()
-  const salt = randomBytes(SALT_LEN)
-  const key = deriveKey(passphrase, salt)
-  try {
-    const plain: VaultPlain = { entries: [] }
-    const body = JSON.stringify(plain)
-    const inner = encryptBlob(key, body)
-    const out = Buffer.alloc(MAGIC.length + 1 + SALT_LEN + inner.length)
-    MAGIC.copy(out, 0)
-    out[MAGIC.length] = VERSION
-    salt.copy(out, MAGIC.length + 1)
-    inner.copy(out, MAGIC.length + 1 + SALT_LEN)
-    writeFileSync(vaultPath(), out)
-  } finally {
-    key.fill(0)
-  }
-  unlock(passphrase)
-}
-
-export function unlock(passphrase: string): void {
-  if (!vaultFileExists()) throw new Error('no vault')
+function loadV2(): void {
+  if (!isOsKeyStorageAvailable()) throw new Error('OS secure storage is not available')
+  if (!existsSync(dekPath())) throw new Error('missing vault key file')
   const raw = readFileSync(vaultPath())
-  if (raw.length < MAGIC.length + 1 + SALT_LEN + IV_LEN + TAG_LEN) {
+  if (raw.length < MAGIC.length + 1 + IV_LEN + TAG_LEN || !raw.subarray(0, 4).equals(MAGIC)) {
     throw new Error('invalid vault file')
   }
+  if (raw[4] !== VERSION_V2) throw new Error('not a v2 vault')
+  const enc = raw.subarray(MAGIC.length + 1)
+  const dekEnc = readFileSync(dekPath())
+  const dekB64 = safeStorage.decryptString(dekEnc)
+  const key = Buffer.from(dekB64, 'base64')
+  if (key.length !== KEY_LEN) {
+    key.fill(0)
+    throw new Error('invalid vault key')
+  }
+  let plain: string
+  try {
+    plain = decryptBlob(key, enc)
+  } catch {
+    key.fill(0)
+    throw new Error('corrupt vault')
+  }
+  const parsed = JSON.parse(plain) as VaultPlain
+  if (!parsed || !Array.isArray(parsed.entries)) {
+    key.fill(0)
+    throw new Error('corrupt vault')
+  }
+  lock()
+  sessionKey = key
+  entriesCache = parsed.entries.map(normalizeEntry)
+}
+
+function createEmptyV2(): void {
+  if (!isOsKeyStorageAvailable()) throw new Error('OS secure storage is not available')
+  lock()
+  const dek = randomBytes(KEY_LEN)
+  try {
+    writeFileSync(dekPath(), safeStorage.encryptString(dek.toString('base64')))
+    sessionKey = dek
+    entriesCache = []
+    persist()
+  } catch (e) {
+    lock()
+    throw e
+  }
+}
+
+/**
+ * Create an empty v2 vault if none exists; load v2 if present.
+ * Does not load v1 (legacy) vaults — use `vaultNeedsMigration()` + `migrateFromV1Passphrase`.
+ */
+export function ensureVaultReady(): void {
+  if (!vaultFileExists()) {
+    if (!isOsKeyStorageAvailable()) return
+    createEmptyV2()
+    return
+  }
+  const ver = readFileVersion()
+  if (ver === VERSION_V1) return
+  if (ver === VERSION_V2) {
+    if (!isOsKeyStorageAvailable()) return
+    if (isUnlocked()) return
+    loadV2()
+  }
+}
+
+/** Clear key material at shutdown (optional hygiene). */
+export function shutdownVaultSession(): void {
+  lock()
+}
+
+function readV1EntriesWithPassphrase(passphrase: string): PasswordVaultEntry[] {
+  const raw = readFileSync(vaultPath())
+  if (raw.length < MAGIC.length + 1 + SALT_LEN + IV_LEN + TAG_LEN) throw new Error('invalid vault file')
   if (!raw.subarray(0, 4).equals(MAGIC)) throw new Error('bad magic')
-  if (raw[4] !== VERSION) throw new Error('unsupported version')
+  if (raw[4] !== VERSION_V1) throw new Error('not a v1 vault')
   const salt = raw.subarray(5, 5 + SALT_LEN)
   const enc = raw.subarray(5 + SALT_LEN)
   const key = deriveKey(passphrase, salt)
@@ -175,16 +214,32 @@ export function unlock(passphrase: string): void {
     key.fill(0)
     throw new Error('wrong passphrase')
   }
+  key.fill(0)
   const parsed = JSON.parse(plain) as VaultPlain
-  if (!parsed || !Array.isArray(parsed.entries)) {
-    key.fill(0)
-    throw new Error('corrupt vault')
+  if (!parsed || !Array.isArray(parsed.entries)) throw new Error('corrupt vault')
+  return parsed.entries.map(normalizeEntry)
+}
+
+/** Re-encrypt vault with OS-wrapped key; replaces v1 file on disk. */
+export function migrateFromV1Passphrase(passphrase: string): void {
+  if (!isOsKeyStorageAvailable()) {
+    throw new Error('OS secure storage is not available; cannot migrate on this device.')
   }
+  if (!vaultNeedsMigration()) {
+    throw new Error('no migration needed')
+  }
+  const entries = readV1EntriesWithPassphrase(passphrase)
   lock()
-  sessionKey = key
-  entriesCache = parsed.entries.map(normalizeEntry)
-  resetIdleTimer()
-  startIdleWatcher()
+  const dek = randomBytes(KEY_LEN)
+  try {
+    writeFileSync(dekPath(), safeStorage.encryptString(dek.toString('base64')))
+    sessionKey = dek
+    entriesCache = entries
+    persist()
+  } catch (e) {
+    lock()
+    throw e
+  }
 }
 
 function normalizeEntry(e: PasswordVaultEntry): PasswordVaultEntry {
@@ -200,13 +255,11 @@ function normalizeEntry(e: PasswordVaultEntry): PasswordVaultEntry {
 
 export function listEntries(): PasswordVaultEntry[] {
   if (!entriesCache) throw new Error('vault locked')
-  touch()
   return entriesCache.map((e) => ({ ...e }))
 }
 
 export function getForDomain(domain: string): PasswordVaultEntry[] {
   if (!entriesCache) return []
-  touch()
   const d = normalizeDomain(domain)
   return entriesCache.filter((e) => e.domain === d).map((e) => ({ ...e }))
 }
@@ -219,7 +272,6 @@ export function normalizeDomain(host: string): string {
 
 export function addEntry(domain: string, username: string, password: string): PasswordVaultEntry {
   if (!entriesCache || !sessionKey) throw new Error('vault locked')
-  touch()
   const d = normalizeDomain(domain)
   const now = Date.now()
   const entry: PasswordVaultEntry = {
@@ -237,17 +289,14 @@ export function addEntry(domain: string, username: string, password: string): Pa
 
 export function deleteEntry(id: string): void {
   if (!entriesCache || !sessionKey) throw new Error('vault locked')
-  touch()
   const i = entriesCache.findIndex((e) => e.id === id)
   if (i === -1) return
   entriesCache.splice(i, 1)
   persist()
 }
 
-
 export function importRows(rows: Array<{ domain: string; username: string; password: string }>): number {
   if (!entriesCache || !sessionKey) throw new Error('vault locked')
-  touch()
   const now = Date.now()
   let count = 0
   for (const row of rows) {

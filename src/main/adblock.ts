@@ -10,7 +10,12 @@ import type { AdBlockLevel } from '../shared/ipc.js'
 import { noteAdblockNetworkAction } from './adblock-notify.js'
 import { getSettings, normalizePinnedHostname } from './settings-store.js'
 
-/** Strictest set (live mirrors); same safety Config as medium (no filter CSP, first-party bypass). */
+const ADBLOCK_DEBUG = process.env.VELO_ADBLOCK_DEBUG === '1'
+
+const LOW_FILTER_LISTS: string[] = [...adsLists]
+
+const MEDIUM_FILTER_LISTS: string[] = [...adsAndTrackingLists]
+
 const HIGH_FILTER_LISTS = [
   'https://easylist.to/easylist/easylist.txt',
   'https://easylist.to/easylist/easyprivacy.txt',
@@ -21,38 +26,78 @@ const HIGH_FILTER_LISTS = [
   'https://secure.fanboy.co.nz/fanboy-annoyance.txt'
 ]
 
-/** EasyList only (Ghostery mirror) — cosmetics + element hiding, no network cancel on low. */
-const LOW_FILTER_LISTS = [adsLists[0]]
+const BUILTIN_COMPAT_REGISTRABLE_DOMAINS = new Set([
+  'chatgpt.com',
+  'openai.com',
+  'twitter.com',
+  'x.com',
+  'google.com',
+  'youtube.com',
+  'github.com',
+  'discord.com',
+  'discordapp.com',
+  'live.com',
+  'microsoft.com'
+])
+
+const BUILTIN_COMPAT_EXTRA_HOSTS = new Set([
+  'chat.openai.com',
+  'accounts.google.com',
+  'login.live.com'
+])
+
+const KNOWN_AD_TRACKER_HOST_SUFFIXES = [
+  'doubleclick.net',
+  'googlesyndication.com',
+  'google-analytics.com',
+  'googleadservices.com',
+  'googletagmanager.com',
+  '2mdn.net',
+  'scorecardresearch.com',
+  'taboola.com',
+  'outbrain.com',
+  'adsystem.com',
+  'amazon-adsystem.com',
+  'criteo.com',
+  'advertising.com',
+  'moatads.com',
+  'pubmatic.com',
+  'rubiconproject.com',
+  '3lift.com',
+  'adsafeprotected.com',
+  'chartbeat.com',
+  'hotjar.com'
+]
 
 let contentSessionRef: Session | null = null
 let activeBlocker: ElectronBlocker | null = null
 
-function diskCacheForLevel(level: Exclude<AdBlockLevel, 'off'>) {
-  const path = join(app.getPath('userData'), 'data', `adblock-engine-v2-${level}.bin`)
-  return {
-    path,
-    read: async (p: string) => new Uint8Array(await readFile(p)),
-    write: async (p: string, buffer: Uint8Array) => {
-      await mkdir(dirname(p), { recursive: true })
-      await writeFile(p, buffer)
-    }
+function dbg(...args: unknown[]): void {
+  if (ADBLOCK_DEBUG) console.log('[velo adblock]', ...args)
+}
+
+export function getHostname(url: string): string {
+  try {
+    return normalizePinnedHostname(new URL(urlForHttps(url)).hostname)
+  } catch {
+    return ''
   }
 }
 
-function urlForRegistrableParse(raw: string): string {
-  if (raw.startsWith('wss://')) return `https://${raw.slice(6)}`
-  if (raw.startsWith('ws://')) return `http://${raw.slice(5)}`
-  return raw
-}
-
-function registrableDomainFromUrl(url: string): string | null {
-  if (!url || !/^(https?|wss?):\/\//i.test(url)) return null
+export function getRegistrableDomain(url: string): string | null {
+  if (!url?.trim() || !/^(https?|wss?):\/\//i.test(url)) return null
   try {
-    const p = parse(urlForRegistrableParse(url))
+    const p = parse(urlForHttps(url))
     return p.domain || null
   } catch {
     return null
   }
+}
+
+function urlForHttps(raw: string): string {
+  if (raw.startsWith('wss://')) return `https://${raw.slice(6)}`
+  if (raw.startsWith('ws://')) return `http://${raw.slice(5)}`
+  return raw
 }
 
 function documentContextPageUrls(details: OnBeforeRequestListenerDetails): string[] {
@@ -83,37 +128,73 @@ function documentContextPageUrls(details: OnBeforeRequestListenerDetails): strin
   return [...new Set(out)]
 }
 
-/**
- * Same registrable domain as the embedding document (subdomains/CDN under same eTLD+1).
- * When domain is unknown (e.g. bare host), fall back to hostname equality.
- */
-function isFirstPartyToDocumentContext(details: OnBeforeRequestListenerDetails): boolean {
-  let reqHost: string
-  try {
-    reqHost = normalizePinnedHostname(new URL(urlForRegistrableParse(details.url)).hostname)
-    if (!reqHost) return false
-  } catch {
-    return false
-  }
-  const reqDom = registrableDomainFromUrl(details.url)
+export function isFirstPartyToDocumentContext(details: OnBeforeRequestListenerDetails): boolean {
+  const reqHost = getHostname(details.url)
+  if (!reqHost) return false
+  const reqDom = getRegistrableDomain(details.url)
 
   for (const pageUrl of documentContextPageUrls(details)) {
-    const docDom = registrableDomainFromUrl(pageUrl)
+    const docDom = getRegistrableDomain(pageUrl)
     if (docDom != null && reqDom != null && docDom === reqDom) return true
     try {
-      const docHost = normalizePinnedHostname(new URL(pageUrl).hostname)
+      const docHost = getHostname(pageUrl)
       if (docHost && docHost === reqHost) return true
     } catch {}
   }
   return false
 }
 
-function shouldBypassNetworkIntervention(details: OnBeforeRequestListenerDetails): boolean {
-  if (details.resourceType === 'webSocket') return true
-  return isFirstPartyToDocumentContext(details)
+export function isMajorCompatibilitySite(details: OnBeforeRequestListenerDetails): boolean {
+  for (const pageUrl of documentContextPageUrls(details)) {
+    const host = getHostname(pageUrl)
+    if (!host) continue
+    if (BUILTIN_COMPAT_EXTRA_HOSTS.has(host)) return true
+    const dom = getRegistrableDomain(pageUrl)
+    if (dom && BUILTIN_COMPAT_REGISTRABLE_DOMAINS.has(dom)) return true
+  }
+  return false
 }
 
-/** True if `host` equals an allowlisted host or is a subdomain of one. */
+export function isSafeResourceTypeToCancel(
+  rt: OnBeforeRequestListenerDetails['resourceType']
+): boolean {
+  return rt === 'image' || rt === 'subFrame' || rt === 'media' || rt === 'font'
+}
+
+export function isRiskyResourceType(
+  rt: OnBeforeRequestListenerDetails['resourceType']
+): boolean {
+  return rt === 'script' || rt === 'xhr' || rt === 'stylesheet' || rt === 'other'
+}
+
+function hostnameMatchesKnownSuffix(host: string): boolean {
+  const h = normalizePinnedHostname(host)
+  if (!h) return false
+  if (h.startsWith('adservice.google.') || h.includes('.adservice.google.')) return true
+  for (const suf of KNOWN_AD_TRACKER_HOST_SUFFIXES) {
+    if (h === suf || h.endsWith(`.${suf}`)) return true
+  }
+  if (h === 'connect.facebook.net' || h.endsWith('.facebook.net')) return true
+  return false
+}
+
+export function isKnownAdOrTrackerHost(url: string): boolean {
+  try {
+    const host = getHostname(url)
+    return hostnameMatchesKnownSuffix(host)
+  } catch {
+    return false
+  }
+}
+
+function userAllowlistHosts(): string[] {
+  return getSettings().adBlockAllowlistHostnames
+}
+
+function hostnameMatchesUserAllowlist(host: string, allow: readonly string[]): boolean {
+  return hostnameMatchesAllowlist(host, allow)
+}
+
 function hostnameMatchesAllowlist(host: string, allowRaw: readonly string[]): boolean {
   const h = normalizePinnedHostname(host)
   if (!h || allowRaw.length === 0) return false
@@ -126,74 +207,142 @@ function hostnameMatchesAllowlist(host: string, allowRaw: readonly string[]): bo
   return false
 }
 
-function pageUrlMatchesAllowlist(pageUrl: string): boolean {
-  const allow = getSettings().adBlockAllowlistHostnames
+function pageUrlMatchesUserAllowlist(pageUrl: string): boolean {
+  const allow = userAllowlistHosts()
   if (allow.length === 0 || !pageUrl.toLowerCase().startsWith('http')) return false
   try {
-    const host = normalizePinnedHostname(new URL(pageUrl).hostname)
-    return hostnameMatchesAllowlist(host, allow)
+    const host = getHostname(pageUrl)
+    return hostnameMatchesUserAllowlist(host, allow)
   } catch {
     return false
   }
 }
 
-function isAllowlistedAdblockRequest(details: OnBeforeRequestListenerDetails): boolean {
-  const allow = getSettings().adBlockAllowlistHostnames
-  if (allow.length === 0) return false
-  try {
-    const reqHost = normalizePinnedHostname(new URL(details.url).hostname)
-    if (hostnameMatchesAllowlist(reqHost, allow)) return true
-  } catch {}
-  const ref = details.referrer
-  if (typeof ref === 'string' && ref.length > 0 && ref.toLowerCase().startsWith('http')) {
-    try {
-      const refHost = normalizePinnedHostname(new URL(ref).hostname)
-      if (hostnameMatchesAllowlist(refHost, allow)) return true
-    } catch {}
-  }
-  const wcId = details.webContentsId ?? details.webContents?.id
-  if (wcId != null) {
-    const wc = webContents.fromId(wcId)
-    if (wc && !wc.isDestroyed()) {
-      const tabUrl = wc.getURL()
-      if (tabUrl.toLowerCase().startsWith('http')) {
-        try {
-          const pageHost = normalizePinnedHostname(new URL(tabUrl).hostname)
-          if (hostnameMatchesAllowlist(pageHost, allow)) return true
-        } catch {}
-      }
-    }
-  }
-  const fr = details.frame
-  if (fr && !fr.isDestroyed()) {
-    const top = fr.top
-    const documentUrl =
-      top && !top.isDestroyed() && top.url.toLowerCase().startsWith('http') ? top.url : fr.url
-    if (documentUrl.toLowerCase().startsWith('http')) {
-      try {
-        const docHost = normalizePinnedHostname(new URL(documentUrl).hostname)
-        if (hostnameMatchesAllowlist(docHost, allow)) return true
-      } catch {}
-    }
+export function pageUsesCompatOrAllowlist(details: OnBeforeRequestListenerDetails): boolean {
+  if (isMajorCompatibilitySite(details)) return true
+  for (const u of documentContextPageUrls(details)) {
+    if (pageUrlMatchesUserAllowlist(u)) return true
   }
   return false
 }
 
-function wrapBlockerForAdblockToast(blocker: ElectronBlocker): void {
+function requestTargetInUserAllowlist(details: OnBeforeRequestListenerDetails): boolean {
+  const allow = userAllowlistHosts()
+  if (allow.length === 0) return false
+  try {
+    return hostnameMatchesUserAllowlist(getHostname(details.url), allow)
+  } catch {
+    return false
+  }
+}
+
+function pageUrlMatchesAllowlistForCosmetics(pageUrl: string): boolean {
+  return pageUrlMatchesUserAllowlist(pageUrl)
+}
+
+export function canCancelNetworkRequest(
+  details: OnBeforeRequestListenerDetails,
+  level: Exclude<AdBlockLevel, 'off'>
+): boolean {
+  const rt = details.resourceType
+
+  if (rt === 'mainFrame') return false
+  if (rt === 'webSocket') return false
+  if (requestTargetInUserAllowlist(details)) return false
+
+  const firstParty = isFirstPartyToDocumentContext(details)
+  const pageCompat = pageUsesCompatOrAllowlist(details)
+
+  if (firstParty) {
+    if (isRiskyResourceType(rt)) return false
+    if (isSafeResourceTypeToCancel(rt)) return true
+    if (rt === 'object' || rt === 'ping' || rt === 'cspReport') return true
+    return false
+  }
+
+  if (isSafeResourceTypeToCancel(rt) || rt === 'object' || rt === 'ping' || rt === 'cspReport') {
+    return true
+  }
+
+  if (!isRiskyResourceType(rt)) return false
+
+  if (level === 'low') return false
+
+  if (pageCompat) return false
+
+  const known = isKnownAdOrTrackerHost(details.url)
+  if (level === 'medium') return known
+
+  return true
+}
+
+function diskCacheForLevel(level: Exclude<AdBlockLevel, 'off'>) {
+  const path = join(app.getPath('userData'), 'data', `adblock-engine-v4-${level}.bin`)
+  return {
+    path,
+    read: async (p: string) => new Uint8Array(await readFile(p)),
+    write: async (p: string, buffer: Uint8Array) => {
+      await mkdir(dirname(p), { recursive: true })
+      await writeFile(p, buffer)
+    }
+  }
+}
+
+function wrapBlockerForNetworkGateAndToast(
+  blocker: ElectronBlocker,
+  getLevel: () => AdBlockLevel
+): void {
   const orig = blocker.onBeforeRequest.bind(blocker)
   blocker.onBeforeRequest = (details, callback) => {
-    if (isAllowlistedAdblockRequest(details) || shouldBypassNetworkIntervention(details)) {
+    const level = getLevel()
+    if (level === 'off') {
       callback({ cancel: false })
       return
     }
+
+    if (details.resourceType === 'mainFrame') {
+      callback({})
+      return
+    }
+
+    if (details.resourceType === 'webSocket') {
+      callback({ cancel: false })
+      return
+    }
+
     orig(details, (response) => {
-      const cancel = Boolean(response && 'cancel' in response && response.cancel === true)
       const redirect =
-        Boolean(response && 'redirectURL' in response && (response as { redirectURL?: string }).redirectURL)
-      if (cancel || redirect) {
-        const wcId = details.webContentsId ?? details.webContents?.id
-        noteAdblockNetworkAction(wcId)
+        response &&
+        'redirectURL' in response &&
+        Boolean((response as { redirectURL?: string }).redirectURL)
+      const cancel = Boolean(response && 'cancel' in response && response.cancel === true)
+
+      if (!cancel && !redirect) {
+        callback(response)
+        return
       }
+
+      const effLevel = level as Exclude<AdBlockLevel, 'off'>
+      const allow = canCancelNetworkRequest(details, effLevel)
+
+      if (!allow) {
+        dbg('allow-compat', details.url, details.resourceType, {
+          firstParty: isFirstPartyToDocumentContext(details),
+          compatPage: pageUsesCompatOrAllowlist(details),
+          level
+        })
+        callback({ cancel: false })
+        return
+      }
+
+      if (redirect) {
+        dbg('deny-redirect-stripped', details.url, details.resourceType, level)
+        callback({ cancel: false })
+        return
+      }
+
+      dbg('deny-cancel', details.url, details.resourceType, level)
+      noteAdblockNetworkAction(details)
       callback(response)
     })
   }
@@ -202,16 +351,17 @@ function wrapBlockerForAdblockToast(blocker: ElectronBlocker): void {
 function wrapBlockerForAllowlistedSites(blocker: ElectronBlocker): void {
   const cosmeticFirst = blocker.onGetCosmeticFiltersFirst.bind(blocker)
   blocker.onGetCosmeticFiltersFirst = (event, url) => {
-    if (pageUrlMatchesAllowlist(url)) {
+    if (pageUrlMatchesAllowlistForCosmetics(url)) {
       event.returnValue = null
       return
     }
     cosmeticFirst(event, url)
+    event.returnValue = null
   }
 
   const cosmeticUpdated = blocker.onGetCosmeticFiltersUpdated.bind(blocker)
   blocker.onGetCosmeticFiltersUpdated = (event, url, msg) => {
-    if (pageUrlMatchesAllowlist(url)) {
+    if (pageUrlMatchesAllowlistForCosmetics(url)) {
       return
     }
     cosmeticUpdated(event, url, msg)
@@ -221,7 +371,7 @@ function wrapBlockerForAllowlistedSites(blocker: ElectronBlocker): void {
   blocker.onHeadersReceived = (details, callback) => {
     try {
       const u = details.url
-      if (typeof u === 'string' && u.toLowerCase().startsWith('http') && pageUrlMatchesAllowlist(u)) {
+      if (typeof u === 'string' && u.toLowerCase().startsWith('http') && pageUrlMatchesAllowlistForCosmetics(u)) {
         callback({})
         return
       }
@@ -230,42 +380,33 @@ function wrapBlockerForAllowlistedSites(blocker: ElectronBlocker): void {
   }
 }
 
-/** Explicit list URLs and FiltersEngine config per tier (filter-list CSP off everywhere). */
+const sharedEngineConfig: Partial<Config> = {
+  loadNetworkFilters: true,
+  loadCosmeticFilters: true,
+  loadCSPFilters: false,
+  guessRequestTypeFromUrl: true,
+  loadExtendedSelectors: false,
+  loadGenericCosmeticsFilters: true,
+  enableMutationObserver: true
+}
+
+const lowEngineConfig: Partial<Config> = {
+  ...sharedEngineConfig,
+  loadGenericCosmeticsFilters: false,
+  enableMutationObserver: false
+}
+
 function engineOptionsForLevel(level: Exclude<AdBlockLevel, 'off'>): {
   lists: string[]
   config: Partial<Config>
 } {
-  const sharedNetwork: Partial<Config> = {
-    loadNetworkFilters: true,
-    loadCosmeticFilters: true,
-    loadCSPFilters: false,
-    guessRequestTypeFromUrl: true,
-    loadExtendedSelectors: false
-  }
-
   if (level === 'low') {
-    return {
-      lists: LOW_FILTER_LISTS,
-      config: {
-        loadNetworkFilters: false,
-        loadCosmeticFilters: true,
-        loadGenericCosmeticsFilters: false,
-        loadCSPFilters: false,
-        enableMutationObserver: false,
-        loadExtendedSelectors: false
-      }
-    }
+    return { lists: LOW_FILTER_LISTS, config: lowEngineConfig }
   }
   if (level === 'medium') {
-    return {
-      lists: [...adsAndTrackingLists],
-      config: sharedNetwork
-    }
+    return { lists: MEDIUM_FILTER_LISTS, config: { ...sharedEngineConfig, loadGenericCosmeticsFilters: false } }
   }
-  return {
-    lists: HIGH_FILTER_LISTS,
-    config: sharedNetwork
-  }
+  return { lists: HIGH_FILTER_LISTS, config: sharedEngineConfig }
 }
 
 async function createBlockerForLevel(
@@ -308,9 +449,9 @@ export async function applyAdBlockLevel(level: AdBlockLevel): Promise<void> {
   const fetchImpl = globalThis.fetch.bind(globalThis) as typeof globalThis.fetch
 
   try {
-    const cache = diskCacheForLevel(level)
-    const blocker = await createBlockerForLevel(level, fetchImpl, cache)
-    wrapBlockerForAdblockToast(blocker)
+    const cache = diskCacheForLevel(level as Exclude<AdBlockLevel, 'off'>)
+    const blocker = await createBlockerForLevel(level as Exclude<AdBlockLevel, 'off'>, fetchImpl, cache)
+    wrapBlockerForNetworkGateAndToast(blocker, () => getSettings().adBlockLevel)
     wrapBlockerForAllowlistedSites(blocker)
     activeBlocker = blocker
     blocker.enableBlockingInSession(session)
