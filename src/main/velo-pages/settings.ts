@@ -165,12 +165,152 @@ function panelDownloadPreferences(): string {
 
 function panelPrivacy(): string {
   return `<h2 class="vp-set-h">Privacy</h2>
-<p class="vp-set-note">Control how Velo filters ads and trackers. The default is <strong>Off</strong> for compatibility; turn it up if you want stricter blocking. If a page looks broken, add its hostname to the allowlist below or use the toast suggestion when Velo blocks many requests.</p>
+<p class="vp-set-note">Control how Velo filters ads and trackers. The default is <strong>Off</strong>. Higher levels load larger filter lists, but Velo avoids blocking or altering first-party requests (same site), WebSockets, and never injects filter-driven CSP into pages — add a hostname to the allowlist if something still breaks.</p>
+<style>
+  .vp-adblock-compose { max-width: 560px; margin-top: 0.9rem; }
+  .vp-adblock-compose-label {
+    display: block;
+    font-size: 0.8125rem;
+    font-weight: 650;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    color: color-mix(in srgb, var(--fg) 88%, var(--muted));
+    margin-bottom: 0.5rem;
+  }
+  .vp-adblock-compose-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: stretch;
+    gap: 0.65rem;
+  }
+  .vp-adblock-field {
+    flex: 1;
+    min-width: min(100%, 220px);
+    display: flex;
+    align-items: stretch;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--vel-input-bg, var(--bg-elevated));
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.05);
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    overflow: hidden;
+  }
+  .vp-adblock-field:focus-within {
+    border-color: color-mix(in srgb, var(--accent) 50%, var(--border));
+    box-shadow:
+      inset 0 1px 2px rgba(0, 0, 0, 0.05),
+      0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+  }
+  .vp-adblock-field-key {
+    display: flex;
+    align-items: center;
+    padding: 0 0.7rem 0 0.85rem;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: color-mix(in srgb, var(--accent) 72%, var(--muted));
+    background: color-mix(in srgb, var(--accent) 8%, var(--card));
+    border-right: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  .vp-adblock-field input {
+    flex: 1;
+    min-width: 0;
+    border: none;
+    margin: 0;
+    padding: 0.65rem 0.85rem;
+    font: inherit;
+    font-size: 0.95rem;
+    background: transparent;
+    color: inherit;
+    outline: none;
+  }
+  .vp-adblock-field input::placeholder {
+    color: color-mix(in srgb, var(--muted) 85%, transparent);
+  }
+  .vp-adblock-submit {
+    margin-top: 0 !important;
+    padding: 0.65rem 1.2rem !important;
+    border-radius: 10px !important;
+    font-weight: 650 !important;
+    font-size: 0.9rem !important;
+    white-space: nowrap;
+    border: 1px solid color-mix(in srgb, var(--accent) 52%, var(--border)) !important;
+    background: color-mix(in srgb, var(--accent) 14%, var(--card)) !important;
+    color: var(--accent) !important;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+  }
+  .vp-adblock-submit:hover {
+    background: color-mix(in srgb, var(--accent) 22%, var(--card)) !important;
+    border-color: color-mix(in srgb, var(--accent) 62%, var(--border)) !important;
+  }
+  .vp-adblock-micro {
+    margin: 0.5rem 0 0;
+    font-size: 0.8125rem;
+    line-height: 1.45;
+    color: var(--muted);
+  }
+  .vp-adblock-list-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    margin: 1.15rem 0 0.35rem;
+    padding-top: 0.65rem;
+    border-top: 1px solid var(--border);
+  }
+  .vp-adblock-list-title { margin: 0; font-size: 0.8125rem; font-weight: 650; color: color-mix(in srgb, var(--fg) 90%, var(--muted)); }
+  .vp-adblock-empty {
+    margin: 0.65rem 0 0;
+    padding: 1rem 1rem;
+    text-align: center;
+    font-size: 0.9rem;
+    line-height: 1.5;
+    color: var(--muted);
+    border: 1px dashed color-mix(in srgb, var(--border) 90%, var(--muted));
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--card) 92%, transparent);
+  }
+  .vp-adblock-pill {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.5rem 0.75rem;
+    margin-top: 0.45rem;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--vel-input-bg, var(--bg-elevated));
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  }
+  .vp-adblock-pill > span {
+    font-family: ui-monospace, 'Cascadia Mono', 'Segoe UI Mono', Consolas, monospace;
+    font-size: 0.88rem;
+    word-break: break-all;
+  }
+  .vp-adblock-pill .adblock-allow-rm {
+    margin-top: 0 !important;
+    flex-shrink: 0;
+    padding: 0.4rem 0.75rem !important;
+    font-size: 0.8125rem !important;
+    border-radius: 8px !important;
+  }
+  .vp-adblock-compose .vp-code {
+    font-size: 0.88em;
+    font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+    background: color-mix(in srgb, var(--vel-input-bg, var(--bg-elevated)) 88%, var(--border));
+    padding: 0.1em 0.38em;
+    border-radius: 5px;
+    border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+  }
+</style>
 <div class="card">
   <div class="vp-set-row">
     <div class="vp-set-row__text">
       <div class="vp-set-row__title" id="adblock-level-label">Ad blocking</div>
-      <p class="vp-set-row__desc">Off turns off network blocking on all sites. Low uses a small allow-ads list. Medium balances privacy and compatibility. High is strictest (more filter lists) and breaks some sites — use the allowlist for those.</p>
+      <p class="vp-set-row__desc"><strong>Off</strong> — no blocking. <strong>Low</strong> — EasyList cosmetics only (hide common ad placeholders); no network requests are cancelled. <strong>Medium</strong> — Ghostery-style ads + tracking lists with safe network rules (first-party and WebSocket traffic always allowed; no filter CSP). <strong>High</strong> — extra strict lists with the same safety rules as Medium. Third-party hosts that look like ads/tracking can still be blocked; some complex sites may need the allowlist.</p>
     </div>
     <div class="vp-set-row__control">
       <select id="adblock-level" aria-labelledby="adblock-level-label">
@@ -183,16 +323,24 @@ function panelPrivacy(): string {
   </div>
 </div>
 <div class="card" style="margin-top:1rem">
-  <h3 class="vp-set-h" style="font-size:1rem;margin:0 0 0.65rem">Ad block allowlist</h3>
-  <p class="vp-set-note" style="margin-top:0">No ads or trackers are blocked on these sites (helpful when strict lists break something). Use the hostname only, e.g. <code>chatgpt.com</code> — not a full URL.</p>
-  <label class="vp-pw-field" style="max-width:480px">Add site
-    <input type="text" id="adblock-allow-input" placeholder="example.com" autocomplete="off" enterkeyhint="done" />
-  </label>
-  <div class="vp-pw-actions">
-    <button type="button" id="adblock-allow-add">Add to allowlist</button>
+  <h3 class="vp-set-h" style="font-size:1rem;margin:0 0 0.3rem">Ad block allowlist</h3>
+  <p class="vp-set-note" style="margin-top:0">Domains you add here are not filtered by the ad blocker — useful when a site <em>still</em> misbehaves under Medium or High.</p>
+  <div class="vp-adblock-compose">
+    <label class="vp-adblock-compose-label" for="adblock-allow-input">Exclude a site</label>
+    <div class="vp-adblock-compose-row">
+      <div class="vp-adblock-field" role="group" aria-labelledby="adblock-field-key-label">
+        <span class="vp-adblock-field-key" id="adblock-field-key-label">Host</span>
+        <input type="text" id="adblock-allow-input" placeholder="chatgpt.com or www.example.org" autocomplete="off" spellcheck="false" enterkeyhint="done" aria-describedby="adblock-allow-hint" />
+      </div>
+      <button type="button" id="adblock-allow-add" class="vp-adblock-submit">Add to list</button>
+    </div>
+    <p id="adblock-allow-hint" class="vp-adblock-micro">Enter only the hostname (no <code class="vp-code">https://</code>, path, or query). Velo normalizes and strips <code class="vp-code">www.</code> when matching.</p>
   </div>
-  <p id="adblock-allow-err" style="display:none;margin:0.5rem 0 0;color:var(--danger,#c62828);font-size:0.9rem"></p>
-  <div id="adblock-allow-list" style="margin-top:0.75rem"></div>
+  <p id="adblock-allow-err" style="display:none;margin:0.6rem 0 0;color:var(--danger,#c62828);font-size:0.9rem"></p>
+  <div class="vp-adblock-list-head">
+    <p class="vp-adblock-list-title">Excluded sites</p>
+  </div>
+  <div id="adblock-allow-list"></div>
 </div>
 <script>
 (function(){
@@ -212,12 +360,12 @@ function panelPrivacy(): string {
     if (!box) return;
     box.innerHTML = '';
     if (!hosts || hosts.length === 0) {
-      box.innerHTML = '<p class="vp-set-note" style="margin:0">None</p>';
+      box.innerHTML = '<p class="vp-adblock-empty">No sites excluded yet. Add a hostname above when a page needs the blocker fully off for that domain.</p>';
       return;
     }
     hosts.slice().sort().forEach(function(h){
       var row = document.createElement('div');
-      row.className = 'vp-pw-never-item';
+      row.className = 'vp-adblock-pill';
       row.innerHTML = '<span></span><button type="button" class="adblock-allow-rm">Remove</button>';
       row.querySelector('span').textContent = h;
       row.querySelector('.adblock-allow-rm').onclick = async function(){

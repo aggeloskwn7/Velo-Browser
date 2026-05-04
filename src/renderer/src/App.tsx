@@ -1344,8 +1344,8 @@ export default function App(): JSX.Element {
               {adblockToast.suggestSiteFix && adblockToast.pageHostname ? (
                 <>
                   <p className="velo-adblock-toast-hint">
-                    If the page looks wrong or stays blank, Velo’s ad blocker may be blocking something it
-                    needs. Add <strong>{adblockToast.pageHostname}</strong> under Privacy → Ad block allowlist
+                    If the page looks wrong or stays blank, try adding <strong>{adblockToast.pageHostname}</strong> under Privacy → Ad block allowlist
+                    (Velo already keeps first-party and WebSocket traffic unblocked).
                     and refresh, or use the button below.
                   </p>
                   <div className="velo-adblock-toast-actions">
