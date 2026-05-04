@@ -43,14 +43,28 @@ jobs:
       - name: Build Windows installer
         run: npm run dist:win -- --publish never
 
+      - name: Stage Windows artifacts
+        shell: bash
+        run: |
+          set -euxo pipefail
+          mkdir -p win-out
+          cp release/latest.yml win-out/
+          shopt -s nullglob
+          exes=(release/Velo-Installer-Windows-*.exe)
+          if [ ${#exes[@]} -eq 0 ]; then
+            echo "Missing Windows .exe in release/"; ls -la release; exit 1
+          fi
+          for f in "${exes[@]}"; do cp "$f" win-out/; done
+          for f in release/Velo-Installer-Windows-*.exe.blockmap; do
+            [ -f "$f" ] && cp "$f" win-out/ || true
+          done
+          ls -la win-out
+
       - uses: actions/upload-artifact@v4
         with:
           name: velo-windows
           if-no-files-found: error
-          path: |
-            release/Velo-Installer-Windows-*.exe
-            release/latest.yml
-            release/Velo-Installer-Windows-*.exe.blockmap
+          path: win-out/*
 
   build-macos:
     runs-on: macos-latest
@@ -67,14 +81,27 @@ jobs:
       - name: Build macOS DMG
         run: npm run dist:mac -- --publish never
 
+      - name: Stage macOS artifacts
+        run: |
+          set -euxo pipefail
+          mkdir -p mac-out
+          cp release/latest-mac.yml mac-out/
+          shopt -s nullglob
+          dmgs=(release/Velo-Installer-macOS-*.dmg)
+          if [ ${#dmgs[@]} -eq 0 ]; then
+            echo "Missing macOS .dmg in release/"; ls -la release; exit 1
+          fi
+          for f in "${dmgs[@]}"; do cp "$f" mac-out/; done
+          for f in release/Velo-Installer-macOS-*.dmg.blockmap; do
+            [ -f "$f" ] && cp "$f" mac-out/ || true
+          done
+          ls -la mac-out
+
       - uses: actions/upload-artifact@v4
         with:
           name: velo-macos
           if-no-files-found: error
-          path: |
-            release/Velo-Installer-macOS-*.dmg
-            release/latest-mac.yml
-            release/Velo-Installer-macOS-*.dmg.blockmap
+          path: mac-out/*
 
   build-linux:
     runs-on: ubuntu-latest
@@ -86,19 +113,40 @@ jobs:
           node-version: '22'
           cache: npm
 
+      # AppImage tooling often needs FUSE on Ubuntu runners.
+      - name: Install Linux build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libfuse2 squashfs-tools
+
       - run: npm ci
 
       - name: Build Linux AppImage
         run: npm run dist:linux -- --publish never
 
+      - name: Stage Linux artifacts
+        run: |
+          set -euxo pipefail
+          mkdir -p linux-out
+          cp release/latest-linux.yml linux-out/
+          shopt -s nullglob
+          imgs=(release/Velo-Installer-Linux*.[Aa]pp[Ii]mage)
+          if [ ${#imgs[@]} -eq 0 ]; then
+            echo "No Velo-Installer-Linux *.AppImage in release/ — listing:"
+            ls -la release
+            exit 1
+          fi
+          cp -v "${imgs[0]}" linux-out/
+          for f in release/Velo-Installer-Linux*.blockmap; do
+            [ -f "$f" ] && cp -v "$f" linux-out/ || true
+          done
+          ls -la linux-out
+
       - uses: actions/upload-artifact@v4
         with:
           name: velo-linux
           if-no-files-found: error
-          path: |
-            release/Velo-Installer-Linux-*.AppImage
-            release/latest-linux.yml
-            release/Velo-Installer-Linux-*.AppImage.blockmap
+          path: linux-out/*
 
   publish-release:
     name: Publish GitHub Release
@@ -154,13 +202,24 @@ jobs:
           }
           copy_one 'Velo-Installer-Windows-*.exe'
           copy_one 'Velo-Installer-macOS-*.dmg'
-          copy_one 'Velo-Installer-Linux-*.AppImage'
+          f_linux=$(find artifacts -type f -iname 'Velo-Installer-Linux*.AppImage' | head -n1)
+          if [[ -z "$f_linux" ]]; then
+            echo "Missing Linux AppImage under artifacts/"
+            find artifacts -type f | sort || true
+            exit 1
+          fi
+          cp "$f_linux" "release-assets/$(basename "$f_linux")"
+          echo "Collected $(basename "$f_linux")"
           copy_one 'latest.yml'
           copy_one 'latest-mac.yml'
           copy_one 'latest-linux.yml'
           copy_one 'Velo-Installer-Windows-*.exe.blockmap'
           copy_one 'Velo-Installer-macOS-*.dmg.blockmap'
-          copy_one 'Velo-Installer-Linux-*.AppImage.blockmap'
+          bm=$(find artifacts -type f -iname 'Velo-Installer-Linux*.blockmap' | head -n1 || true)
+          if [[ -n "$bm" ]]; then
+            cp "$bm" "release-assets/$(basename "$bm")"
+            echo "Collected $(basename "$bm")"
+          fi
           ls -la release-assets
 
       - name: Create release and upload assets
@@ -171,15 +230,8 @@ jobs:
           generate_release_notes: true
           preserve_order: true
           fail_on_unmatched_files: true
+          # Exact set from collect step (Linux .blockmap only when electron-builder emits it).
           files: |
-            release-assets/Velo-Installer-Windows-*.exe
-            release-assets/Velo-Installer-macOS-*.dmg
-            release-assets/Velo-Installer-Linux-*.AppImage
-            release-assets/latest.yml
-            release-assets/latest-mac.yml
-            release-assets/latest-linux.yml
-            release-assets/Velo-Installer-Windows-*.exe.blockmap
-            release-assets/Velo-Installer-macOS-*.dmg.blockmap
-            release-assets/Velo-Installer-Linux-*.AppImage.blockmap
+            release-assets/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
