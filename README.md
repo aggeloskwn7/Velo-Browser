@@ -73,7 +73,7 @@ Version numbers in filenames follow **`package.json`**; after a version bump, th
 Clone the repository, install dependencies, then either run in development mode or produce `out/` / `release/` artifacts.
 
 ```bash
-git clone <your-fork-or-upstream-url> velo
+git clone https://github.com/aggeloskwn7/Velo-Browser.git velo
 cd velo
 npm install
 ```
