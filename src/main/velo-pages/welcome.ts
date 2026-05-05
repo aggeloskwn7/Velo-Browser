@@ -145,6 +145,56 @@ export function renderWelcomePage(options: WelcomePageOptions): string {
     margin: 0 auto;
   }
 
+  .welcome-progress {
+    font-size: 0.78rem;
+    font-weight: 650;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: color-mix(in srgb, var(--muted) 92%, var(--accent));
+    margin: 0 0 clamp(0.85rem, 2vh, 1.35rem);
+    opacity: 0;
+    transform: translateY(0.5rem);
+    transition: opacity 0.55s ease 0.1s, transform 0.55s ease 0.1s;
+  }
+  .welcome-root.welcome--intro:not(.welcome--rest-revealed) .welcome-progress {
+    opacity: 0;
+    pointer-events: none;
+  }
+  .welcome-progress.welcome--in-view {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  .welcome-steps {
+    position: relative;
+    display: block;
+  }
+
+  .welcome-step {
+    opacity: 0;
+    visibility: hidden;
+    transform: translateX(14px);
+    transition:
+      opacity 0.4s cubic-bezier(0.22, 1, 0.36, 1),
+      transform 0.4s cubic-bezier(0.22, 1, 0.36, 1),
+      visibility 0s linear 0.4s;
+    pointer-events: none;
+    z-index: 0;
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+  }
+  .welcome-step.is-active {
+    opacity: 1;
+    visibility: visible;
+    transform: translateX(0);
+    transition-delay: 0s, 0s, 0s;
+    pointer-events: auto;
+    z-index: 1;
+    position: relative;
+  }
+
   .welcome-rule {
     height: 1px;
     background: linear-gradient(
@@ -209,9 +259,9 @@ export function renderWelcomePage(options: WelcomePageOptions): string {
   }
 
   .welcome-actions {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 0.75rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.65rem;
     align-items: stretch;
     width: 100%;
     max-width: 36rem;
@@ -224,21 +274,27 @@ export function renderWelcomePage(options: WelcomePageOptions): string {
     transform: translateY(0.75rem);
     pointer-events: none;
   }
-  @media (max-width: 560px) {
-    .welcome-actions {
-      grid-template-columns: 1fr;
-    }
-  }
   .welcome-actions.welcome--in-view {
     opacity: 1;
     transform: translateY(0);
+  }
+
+  /* Steps 2–3: same .welcome-actions class but never get welcome--in-view; show when step is active. */
+  .welcome-step.is-active .welcome-actions {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  /* Intro step 1: keep actions hidden until manifesto + revealRest (welcome--rest-revealed). */
+  .welcome-root.welcome--intro:not(.welcome--rest-revealed) .welcome-step.is-active .welcome-actions {
+    opacity: 0;
+    transform: translateY(0.75rem);
+    pointer-events: none;
   }
 
   .welcome-btn {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 100%;
     box-sizing: border-box;
     min-height: 48px;
     padding: 0 1.1rem;
@@ -258,6 +314,11 @@ export function renderWelcomePage(options: WelcomePageOptions): string {
   .welcome-btn:active {
     transform: scale(0.98);
   }
+  .welcome-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+    transform: none;
+  }
   .welcome-btn--primary {
     background: var(--accent);
     color: #0c0c14;
@@ -266,7 +327,7 @@ export function renderWelcomePage(options: WelcomePageOptions): string {
   html[data-chrome-theme='white'] .welcome-btn--primary {
     color: #fff;
   }
-  .welcome-btn--primary:hover {
+  .welcome-btn--primary:hover:not(:disabled) {
     filter: brightness(1.08);
   }
   .welcome-btn--ghost {
@@ -274,31 +335,141 @@ export function renderWelcomePage(options: WelcomePageOptions): string {
     color: var(--fg);
     border: 1px solid var(--border);
   }
-  .welcome-btn--ghost:hover {
+  .welcome-btn--ghost:hover:not(:disabled) {
     background: var(--vel-input-hover);
-  }.welcome-actions > .welcome-btn {
-    height: 48px;
-    min-height: 48px;
-    box-sizing: border-box;
+  }
+  .welcome-btn--grow {
+    flex: 1 1 140px;
+    min-width: min(100%, 140px);
   }
 
-  .welcome-foot {
-    margin-top: 2rem;
-    font-size: 0.82rem;
+  .welcome-step-title {
+    font-size: clamp(1.15rem, 2.4vw, 1.35rem);
+    font-weight: 650;
+    letter-spacing: -0.02em;
+    margin: 0 0 0.5rem;
+    color: var(--fg);
+  }
+  .welcome-step-lead {
+    font-size: 0.95rem;
+    line-height: 1.55;
     color: var(--muted);
-    opacity: 0;
-    transition: opacity 0.6s ease 0.4s;
+    margin: 0 0 1rem;
   }
-  .welcome-root.welcome--intro:not(.welcome--rest-revealed) .welcome-foot {
-    opacity: 0;
-    pointer-events: none;
+
+  .welcome-pw-note {
+    font-size: 0.82rem;
+    line-height: 1.5;
+    color: var(--muted);
+    margin: 1rem 0 0;
+    padding: 0.65rem 0.8rem;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: color-mix(in srgb, var(--vel-input-bg) 88%, var(--card));
   }
-  .welcome-foot.welcome--in-view {
-    opacity: 0.85;
-  }
-  .welcome-foot a {
+  .welcome-pw-note a {
     color: var(--accent);
-  }.welcome-root.welcome--standard {
+  }
+
+  .welcome-tips {
+    margin: 0;
+    padding-left: 1.15rem;
+    font-size: 0.92rem;
+    line-height: 1.55;
+    color: var(--muted);
+  }
+  .welcome-tips li {
+    margin: 0.35rem 0;
+  }
+  .welcome-tips a {
+    color: var(--accent);
+    text-decoration: none;
+  }
+  .welcome-tips a:hover {
+    text-decoration: underline;
+  }
+
+  .welcome-card {
+    margin-top: 1rem;
+    padding: 0.85rem 1rem;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--vel-input-bg);
+  }
+  .welcome-card__title {
+    font-weight: 650;
+    font-size: 0.95rem;
+    margin: 0 0 0.35rem;
+    color: var(--fg);
+  }
+  .welcome-def-status {
+    font-size: 0.88rem;
+    line-height: 1.45;
+    color: var(--muted);
+    margin: 0 0 0.65rem;
+  }
+  .welcome-def-msg {
+    font-size: 0.8rem;
+    color: var(--muted);
+    margin: 0.5rem 0 0;
+    min-height: 1.2em;
+  }
+
+  .welcome-imp-cb { display:flex; align-items:center; gap:0.5rem; margin:0.35rem 0; cursor:pointer; font-size:0.95rem; }
+  .welcome-imp-cb input { width:1rem; height:1rem; }
+  .welcome-imp-browser-row { display:flex; flex-wrap:wrap; gap:0.45rem; margin-top:0.5rem; }
+  .welcome-imp-browser-row .welcome-imp-browser-btn { margin-top:0; }
+  .welcome-imp-browser-btn {
+    font-size:0.86rem;
+    padding:0.4rem 0.65rem;
+    border-radius:0.35rem;
+    border:1px solid var(--border);
+    background:var(--vel-input-bg);
+    color:var(--fg);
+    cursor:pointer;
+    font-family: inherit;
+  }
+  .welcome-imp-browser-btn:hover:not(:disabled) {
+    background:var(--vel-input-hover);
+  }
+  .welcome-imp-browser-btn:disabled {
+    opacity:0.45;
+    cursor:not-allowed;
+  }
+  .welcome-imp-browser-btn[data-active="1"] {
+    border-color:var(--accent);
+    box-shadow:0 0 0 1px color-mix(in srgb, var(--accent) 50%, var(--border));
+    font-weight:600;
+    background:color-mix(in srgb, var(--accent) 14%, var(--vel-input-bg));
+    color:var(--fg);
+  }
+  .welcome-imp-browser-btn[data-active="1"]:hover:not(:disabled) {
+    background:color-mix(in srgb, var(--accent) 20%, var(--vel-input-hover));
+  }
+
+  .welcome-imp-field label { display:block; font-weight:600; font-size:0.88rem; margin-bottom:0.35rem; color:var(--fg); }
+  .welcome-imp-field select {
+    min-width:12rem;
+    padding:0.4rem 0.55rem;
+    font-size:0.92rem;
+    border-radius:8px;
+    border:1px solid var(--border);
+    background:var(--vel-input-bg);
+    color:var(--fg);
+    font-family: inherit;
+  }
+
+  .welcome-imp-result {
+    margin-top: 1rem;
+    font-size: 0.88rem;
+    line-height: 1.5;
+    color: var(--muted);
+    white-space: pre-line;
+    display: none;
+  }
+  .welcome-imp-result.is-visible { display: block; }
+
+  .welcome-root.welcome--standard {
     padding-top: 0;
   }
   .welcome-root.welcome--standard .welcome-lockup {
@@ -337,9 +508,12 @@ export function renderWelcomePage(options: WelcomePageOptions): string {
     .welcome-manifesto,
     .welcome-actions,
     .welcome-rule,
-    .welcome-foot {
+    .welcome-progress {
       opacity: 1 !important;
       transform: none !important;
+      transition: none !important;
+    }
+    .welcome-step {
       transition: none !important;
     }
   }
@@ -363,20 +537,68 @@ export function renderWelcomePage(options: WelcomePageOptions): string {
   </header>
 
   <div class="welcome-scroll">
-    <div class="welcome-manifesto" id="welcome-manifesto">
-      <p class="welcome-manifesto__lead"><span id="welcome-type-lead"></span></p>
-      <p><span id="welcome-type-body"></span></p>
-      <p class="welcome-manifesto__tagline"><span id="welcome-type-tag"></span></p>
+    <p class="welcome-progress" id="welcome-progress" aria-live="polite">Step 1 of 3</p>
+    <div class="welcome-steps" id="welcome-steps">
+      <div class="welcome-step is-active" data-step="1" id="welcome-step-1" role="tabpanel" aria-labelledby="welcome-progress" aria-hidden="false">
+        <div class="welcome-manifesto" id="welcome-manifesto">
+          <p class="welcome-manifesto__lead"><span id="welcome-type-lead"></span></p>
+          <p><span id="welcome-type-body"></span></p>
+          <p class="welcome-manifesto__tagline"><span id="welcome-type-tag"></span></p>
+        </div>
+        <hr class="welcome-rule" id="welcome-rule" />
+        <div class="welcome-actions" id="welcome-step1-actions">
+          <button type="button" class="welcome-btn welcome-btn--primary welcome-btn--grow" id="welcome-btn-next-1">Next</button>
+          <button type="button" class="welcome-btn welcome-btn--ghost welcome-btn--grow" id="welcome-btn-skip-setup">Skip setup</button>
+        </div>
+      </div>
+
+      <div class="welcome-step" data-step="2" id="welcome-step-2" role="tabpanel" aria-hidden="true">
+        <h2 class="welcome-step-title">Import browser data</h2>
+        <p class="welcome-step-lead">Optional — pull history, bookmarks, and downloads from a Chromium browser you already use on this device.</p>
+        <p id="welcome-imp-platform" class="welcome-step-lead" style="display:none;margin-bottom:0.75rem"></p>
+        <div id="welcome-imp-empty" style="display:none">
+          <p class="welcome-step-lead" style="margin-bottom:1rem">No supported browser profiles were found on this device.</p>
+        </div>
+        <div id="welcome-imp-main" style="display:none">
+          <div class="welcome-step-lead" style="margin:0 0 0.35rem;font-weight:600;color:var(--fg)">Import from</div>
+          <div id="welcome-imp-browser-btns" class="welcome-imp-browser-row" role="group" aria-label="Browser source"></div>
+          <div id="welcome-imp-profile-row" class="welcome-imp-field" style="margin-top:0.85rem;display:none">
+            <label for="welcome-imp-profile">Profile</label>
+            <select id="welcome-imp-profile"></select>
+          </div>
+          <fieldset id="welcome-imp-fieldset" style="border:none;margin:0;padding:0;margin-top:0.85rem" disabled>
+            <legend class="welcome-step-lead" style="margin:0 0 0.35rem;font-weight:600;color:var(--fg)">Data to import</legend>
+            <label class="welcome-imp-cb"><input type="checkbox" id="welcome-imp-hist" checked /> History</label>
+            <label class="welcome-imp-cb"><input type="checkbox" id="welcome-imp-bm" checked /> Bookmarks/Favorites</label>
+            <label class="welcome-imp-cb"><input type="checkbox" id="welcome-imp-dl" checked /> Downloads</label>
+          </fieldset>
+          <p id="welcome-imp-result" class="welcome-imp-result" role="status"></p>
+        </div>
+        <p class="welcome-pw-note">
+          Passwords are not imported directly from browser databases. To import passwords, export a CSV from your current browser’s password manager, then open <a href="velo://settings/password-manager">velo://settings/password-manager</a> in Velo and import the CSV file.
+        </p>
+        <div class="welcome-actions" style="margin-top:1.25rem">
+          <button type="button" class="welcome-btn welcome-btn--primary welcome-btn--grow" id="welcome-imp-btn">Import selected data</button>
+          <button type="button" class="welcome-btn welcome-btn--ghost welcome-btn--grow" id="welcome-btn-skip-import">Skip import</button>
+          <button type="button" class="welcome-btn welcome-btn--ghost welcome-btn--grow" id="welcome-btn-next-2">Next</button>
+        </div>
+      </div>
+
+      <div class="welcome-step" data-step="3" id="welcome-step-3" role="tabpanel" aria-hidden="true">
+        <h2 class="welcome-step-title">You're ready</h2>
+        <p class="welcome-step-lead">A few tips before you go:</p>
+        <ul class="welcome-tips" id="welcome-tip-list"></ul>
+        <div class="welcome-card">
+          <div class="welcome-card__title">Make Velo your default browser?</div>
+          <p id="welcome-def-status" class="welcome-def-status"></p>
+          <div class="welcome-actions" style="margin:0;opacity:1;transform:none">
+            <button type="button" class="welcome-btn welcome-btn--primary welcome-btn--grow" id="welcome-def-set">Make default</button>
+            <button type="button" class="welcome-btn welcome-btn--ghost welcome-btn--grow" id="welcome-btn-finish">Finish</button>
+          </div>
+          <p id="welcome-def-msg" class="welcome-def-msg"></p>
+        </div>
+      </div>
     </div>
-    <hr class="welcome-rule" id="welcome-rule" />
-    <div class="welcome-actions" id="welcome-actions">
-      <button type="button" class="welcome-btn welcome-btn--primary" id="welcome-get-started">Get started</button>
-      <button type="button" class="welcome-btn welcome-btn--ghost" id="welcome-set-default">Set default</button>
-      <a class="welcome-btn welcome-btn--ghost" href="velo://settings/appearance">Appearance</a>
-    </div>
-    <p class="welcome-foot" id="welcome-foot">
-      Tip: type <a href="velo://settings">velo://settings</a> in the address bar anytime.
-    </p>
   </div>
 </div>
 <script>
@@ -391,11 +613,16 @@ export function renderWelcomePage(options: WelcomePageOptions): string {
   var toType = 'VELO BROWSER';
   var reduced =
     window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var mac = /Mac|iPhone|iPod|iPad/i.test(navigator.platform || navigator.userAgent || '');
 
   var LEAD = 'Welcome to Velo.';
   var BODY =
     'A modern browser built for speed, simplicity, and control. With a clean interface, powerful features, and a customizable experience, Velo puts you in charge of how you browse.';
   var TAG = 'Start fast. Stay focused. Browse your way.';
+
+  var api = window.veloPage;
+  var currentStep = 1;
+  var detectLoaded = false;
 
   function fillManifesto() {
     if (leadEl) leadEl.textContent = LEAD;
@@ -406,7 +633,7 @@ export function renderWelcomePage(options: WelcomePageOptions): string {
   function revealRest() {
     if (!root) return;
     root.classList.add('welcome--rest-revealed');
-    var restIds = ['welcome-rule', 'welcome-actions', 'welcome-foot'];
+    var restIds = ['welcome-rule', 'welcome-step1-actions', 'welcome-progress'];
     restIds.forEach(function (id) {
       var el = document.getElementById(id);
       if (el) el.classList.add('welcome--in-view');
@@ -478,6 +705,257 @@ export function renderWelcomePage(options: WelcomePageOptions): string {
     });
   }
 
+  function syncStepPanels(n) {
+    var steps = document.querySelectorAll('.welcome-step');
+    steps.forEach(function (s) {
+      var sn = parseInt(s.getAttribute('data-step'), 10);
+      var active = sn === n;
+      s.classList.toggle('is-active', active);
+      s.setAttribute('aria-hidden', active ? 'false' : 'true');
+    });
+  }
+
+  function showStep(n) {
+    currentStep = n;
+    var prog = document.getElementById('welcome-progress');
+    if (prog) prog.textContent = 'Step ' + n + ' of 3';
+    syncStepPanels(n);
+    if (n === 2 && !detectLoaded) {
+      detectLoaded = true;
+      void loadDetect();
+    }
+    if (n === 3) void refreshDefaultBrowser();
+    if (!reduced) {
+      try {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } catch (e) {
+        window.scrollTo(0, 0);
+      }
+    } else window.scrollTo(0, 0);
+  }
+
+  async function finishOnboarding() {
+    try {
+      if (api && api.completeWelcomeOnboarding) await api.completeWelcomeOnboarding();
+      if (api && api.navigateUrl) await api.navigateUrl('velo://newtab');
+      else window.location.href = 'velo://newtab';
+    } catch (err) {
+      window.location.href = 'velo://newtab';
+    }
+  }
+
+  function el(id) { return document.getElementById(id); }
+
+  var BROWSERS = [
+    { id: 'edge', label: 'Microsoft Edge' },
+    { id: 'chrome', label: 'Google Chrome' },
+    { id: 'brave', label: 'Brave' },
+    { id: 'opera', label: 'Opera' },
+    { id: 'opera-gx', label: 'Opera GX' }
+  ];
+  var impState = { sourcesById: {}, selectedBrowserId: null };
+
+  function impSetBusy(b) {
+    var btn = el('welcome-imp-btn');
+    var fs = el('welcome-imp-fieldset');
+    if (btn) btn.disabled = b;
+    if (fs) fs.disabled = b;
+  }
+
+  function impCurrentProfile() {
+    var sid = impState.selectedBrowserId;
+    var src = sid ? impState.sourcesById[sid] : null;
+    if (!src || !src.available || !src.profiles.length) return null;
+    var sel = el('welcome-imp-profile');
+    var pid = sel && sel.value ? sel.value : src.profiles[0].id;
+    for (var i = 0; i < src.profiles.length; i++) {
+      if (src.profiles[i].id === pid) return src.profiles[i];
+    }
+    return src.profiles[0];
+  }
+
+  function impSyncCheckboxesFromProfile() {
+    var p = impCurrentProfile();
+    var fs = el('welcome-imp-fieldset');
+    var h = el('welcome-imp-hist');
+    var b = el('welcome-imp-bm');
+    var dl = el('welcome-imp-dl');
+    if (!p) {
+      if (fs) fs.disabled = true;
+      return;
+    }
+    if (fs) fs.disabled = false;
+    if (h) {
+      h.disabled = !p.hasHistory;
+      if (h.disabled) h.checked = false;
+      else if (!h.hasAttribute('data-touched')) h.checked = true;
+    }
+    if (b) {
+      b.disabled = !p.hasBookmarks;
+      if (b.disabled) b.checked = false;
+      else if (!b.hasAttribute('data-touched')) b.checked = true;
+    }
+    if (dl) {
+      dl.disabled = !p.hasHistory;
+      if (dl.disabled) dl.checked = false;
+      else if (!dl.hasAttribute('data-touched')) dl.checked = true;
+    }
+  }
+
+  function impOnBrowserSelect(id) {
+    impState.selectedBrowserId = id;
+    var h0 = el('welcome-imp-hist'), b0 = el('welcome-imp-bm'), dl0 = el('welcome-imp-dl');
+    if (h0) h0.removeAttribute('data-touched');
+    if (b0) b0.removeAttribute('data-touched');
+    if (dl0) dl0.removeAttribute('data-touched');
+    var row = el('welcome-imp-browser-btns');
+    if (row) {
+      var btns = row.querySelectorAll('.welcome-imp-browser-btn');
+      for (var i = 0; i < btns.length; i++) {
+        btns[i].setAttribute('data-active', btns[i].getAttribute('data-bid') === id ? '1' : '0');
+      }
+    }
+    var src = impState.sourcesById[id];
+    var prow = el('welcome-imp-profile-row');
+    var sel = el('welcome-imp-profile');
+    if (!src || !src.available || !src.profiles.length) {
+      if (prow) prow.style.display = 'none';
+      impSyncCheckboxesFromProfile();
+      return;
+    }
+    if (prow) prow.style.display = src.profiles.length > 1 ? 'block' : 'none';
+    if (sel) {
+      sel.innerHTML = '';
+      for (var j = 0; j < src.profiles.length; j++) {
+        var pr = src.profiles[j];
+        var opt = document.createElement('option');
+        opt.value = pr.id;
+        opt.textContent = pr.name;
+        sel.appendChild(opt);
+      }
+    }
+    impSyncCheckboxesFromProfile();
+  }
+
+  ['welcome-imp-hist', 'welcome-imp-bm', 'welcome-imp-dl'].forEach(function (cid) {
+    var n = el(cid);
+    if (n) n.addEventListener('change', function () { n.setAttribute('data-touched', '1'); });
+  });
+
+  async function loadDetect() {
+    var plat = el('welcome-imp-platform');
+    var main = el('welcome-imp-main');
+    var empty = el('welcome-imp-empty');
+    var row = el('welcome-imp-browser-btns');
+    var impBtn = el('welcome-imp-btn');
+    if (!api || !api.browserDataDetectSources) {
+      if (plat) {
+        plat.style.display = 'block';
+        plat.textContent = 'Import is unavailable (internal API missing). You can continue setup.';
+      }
+      if (main) main.style.display = 'none';
+      if (empty) empty.style.display = 'none';
+      if (impBtn) impBtn.disabled = true;
+      return;
+    }
+    var d = await api.browserDataDetectSources();
+    impState.sourcesById = {};
+    var any = false;
+    for (var i = 0; i < d.sources.length; i++) {
+      impState.sourcesById[d.sources[i].id] = d.sources[i];
+      if (d.sources[i].available) any = true;
+    }
+    if (!any) {
+      if (plat) plat.style.display = 'none';
+      if (main) main.style.display = 'none';
+      if (empty) empty.style.display = 'block';
+      if (impBtn) impBtn.disabled = true;
+      return;
+    }
+    if (plat) plat.style.display = 'none';
+    if (empty) empty.style.display = 'none';
+    if (main) main.style.display = 'block';
+    if (row) {
+      row.innerHTML = '';
+      for (var b = 0; b < BROWSERS.length; b++) {
+        var def = BROWSERS[b];
+        var src = impState.sourcesById[def.id];
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'welcome-imp-browser-btn';
+        btn.setAttribute('data-bid', def.id);
+        btn.textContent = src && src.available ? def.label : def.label + ' — unavailable';
+        btn.disabled = !src || !src.available;
+        btn.onclick = function () {
+          var bid = this.getAttribute('data-bid');
+          if (!bid || !impState.sourcesById[bid] || !impState.sourcesById[bid].available) return;
+          impOnBrowserSelect(bid);
+        };
+        row.appendChild(btn);
+      }
+    }
+    var prSel = el('welcome-imp-profile');
+    if (prSel) prSel.onchange = function () { impSyncCheckboxesFromProfile(); };
+    var first = null;
+    for (var k = 0; k < BROWSERS.length; k++) {
+      var s = impState.sourcesById[BROWSERS[k].id];
+      if (s && s.available) {
+        first = BROWSERS[k].id;
+        break;
+      }
+    }
+    if (first) impOnBrowserSelect(first);
+    if (impBtn) impBtn.disabled = false;
+  }
+
+  function buildTips() {
+    var ul = el('welcome-tip-list');
+    if (!ul) return;
+    var omnibarKey = mac ? '⌘L' : 'Ctrl+L';
+    var tips = [
+      'Type <a href="velo://settings">velo://settings</a> anytime to customize Velo.',
+      'Press <kbd style="font:inherit;font-size:0.92em;padding:0.1em 0.35em;border-radius:4px;border:1px solid var(--border);background:var(--vel-input-bg)">' +
+        omnibarKey +
+        '</kbd> to jump to the omnibar.',
+      'Press <kbd style="font:inherit;font-size:0.92em;padding:0.1em 0.35em;border-radius:4px;border:1px solid var(--border);background:var(--vel-input-bg)">F12</kbd> to open DevTools for the active tab.',
+      'Open <a href="velo://downloads">velo://downloads</a>, <a href="velo://history">velo://history</a>, and <a href="velo://bookmarks">velo://bookmarks</a> for your library.'
+    ];
+    ul.innerHTML = '';
+    tips.forEach(function (html) {
+      var li = document.createElement('li');
+      li.innerHTML = html;
+      ul.appendChild(li);
+    });
+  }
+
+  async function refreshDefaultBrowser() {
+    var stEl = el('welcome-def-status');
+    var btn = el('welcome-def-set');
+    if (!api || !api.getDefaultBrowserStatus) {
+      if (stEl) stEl.textContent = 'Default browser status unavailable.';
+      if (btn) btn.disabled = true;
+      return;
+    }
+    var st = await api.getDefaultBrowserStatus();
+    if (stEl) {
+      if (!st.isPackaged) {
+        stEl.textContent = 'Install Velo from an installer to set it as the system default (dev builds cannot register).';
+      } else if (st.isDefault) {
+        stEl.textContent = 'Velo is already registered as the default browser for web links on this system.';
+      } else if (st.http || st.https) {
+        stEl.textContent =
+          'Velo is only partly registered (HTTP: ' +
+          (st.http ? 'yes' : 'no') +
+          ', HTTPS: ' +
+          (st.https ? 'yes' : 'no') +
+          '). Use Make default below to finish in system settings.';
+      } else {
+        stEl.textContent = 'Velo is not the default browser yet. Use Make default to register Velo and open the right settings page.';
+      }
+    }
+    if (btn) btn.disabled = !st.isPackaged;
+  }
+
   if (isIntro && !reduced) {
     setTimeout(function () {
       root.classList.add('welcome--phase2');
@@ -494,9 +972,9 @@ export function renderWelcomePage(options: WelcomePageOptions): string {
     if (typedEl) typedEl.textContent = toType;
     if (caretEl) caretEl.classList.add('welcome-caret--off');
     fillManifesto();
-    revealRest();
     var m0 = document.getElementById('welcome-manifesto');
     if (m0) m0.classList.add('welcome--in-view');
+    revealRest();
   } else {
     root.classList.add('welcome--phase2');
     if (typedEl) typedEl.textContent = toType;
@@ -522,27 +1000,100 @@ export function renderWelcomePage(options: WelcomePageOptions): string {
     }
   }
 
-  var btn = document.getElementById('welcome-get-started');
-  if (btn) {
-    btn.addEventListener('click', function () {
-      var api = window.veloPage;
-      var go = async function () {
-        try {
-          if (api && api.completeWelcomeOnboarding) await api.completeWelcomeOnboarding();
-          if (api && api.navigateUrl) await api.navigateUrl('velo://newtab');
-          else window.location.href = 'velo://newtab';
-        } catch (err) {
-          window.location.href = 'velo://newtab';
+  buildTips();
+  syncStepPanels(1);
+
+  var n1 = el('welcome-btn-next-1');
+  if (n1) n1.onclick = function () { showStep(2); };
+  var skipSetup = el('welcome-btn-skip-setup');
+  if (skipSetup) skipSetup.onclick = function () { void finishOnboarding(); };
+
+  var n2 = el('welcome-btn-next-2');
+  if (n2) n2.onclick = function () { showStep(3); };
+  var skipImp = el('welcome-btn-skip-import');
+  if (skipImp) skipImp.onclick = function () { showStep(3); };
+
+  var impBtn = el('welcome-imp-btn');
+  if (impBtn) {
+    impBtn.disabled = true;
+    impBtn.onclick = async function () {
+      var resEl = el('welcome-imp-result');
+      if (!api || !api.browserDataImportChromium) return;
+      if (resEl) {
+        resEl.textContent = '';
+        resEl.classList.remove('is-visible');
+      }
+      var sid = impState.selectedBrowserId;
+      var src = sid ? impState.sourcesById[sid] : null;
+      if (!src || !src.available) {
+        if (resEl) {
+          resEl.textContent = 'Select an available browser.';
+          resEl.classList.add('is-visible');
         }
-      };
-      void go();
-    });
+        return;
+      }
+      var pr = impCurrentProfile();
+      if (!pr) {
+        if (resEl) {
+          resEl.textContent = 'No profile selected.';
+          resEl.classList.add('is-visible');
+        }
+        return;
+      }
+      var hist = el('welcome-imp-hist').checked;
+      var bm = el('welcome-imp-bm').checked;
+      var dl = el('welcome-imp-dl').checked;
+      if (!hist && !bm && !dl) {
+        if (resEl) {
+          resEl.textContent = 'Select at least one type of data to import.';
+          resEl.classList.add('is-visible');
+        }
+        return;
+      }
+      impSetBusy(true);
+      try {
+        var r = await api.browserDataImportChromium({
+          browserId: sid,
+          profileId: pr.id,
+          history: hist,
+          bookmarks: bm,
+          downloads: dl
+        });
+        if (resEl) {
+          resEl.classList.add('is-visible');
+          var lines = [];
+          var bits = [];
+          if (r.imported.history > 0) bits.push(r.imported.history + ' history entries');
+          if (r.imported.bookmarks > 0) bits.push(r.imported.bookmarks + ' bookmarks');
+          if (r.imported.downloads > 0) bits.push(r.imported.downloads + ' downloads');
+          if (bits.length > 0) lines.push('Imported ' + bits.join(', ') + '.');
+          else if (!r.errors || r.errors.length === 0) {
+            lines.push('No new items were imported. You may have already imported this data, or the selected source was empty.');
+          }
+          if (r.errors && r.errors.length) {
+            for (var i = 0; i < r.errors.length; i++) {
+              lines.push(r.errors[i]);
+            }
+          }
+          resEl.textContent = lines.join('\\n');
+        }
+      } catch (e) {
+        if (resEl) {
+          resEl.classList.add('is-visible');
+          resEl.textContent = e && e.message ? String(e.message) : 'Import failed.';
+        }
+      } finally {
+        impSetBusy(false);
+      }
+    };
   }
 
-  var btnDef = document.getElementById('welcome-set-default');
+  var btnFinish = el('welcome-btn-finish');
+  if (btnFinish) btnFinish.onclick = function () { void finishOnboarding(); };
+
+  var btnDef = el('welcome-def-set');
   if (btnDef) {
-    btnDef.addEventListener('click', function () {
-      var api = window.veloPage;
+    btnDef.onclick = function () {
       var run = async function () {
         try {
           if (!api || !api.registerDefaultBrowserAndOpenSettings) return;
@@ -551,7 +1102,10 @@ export function renderWelcomePage(options: WelcomePageOptions): string {
             window.alert('Install Velo from an installer to set it as the system default (dev builds cannot register).');
             return;
           }
-          await api.registerDefaultBrowserAndOpenSettings();
+          var r = await api.registerDefaultBrowserAndOpenSettings();
+          var m = el('welcome-def-msg');
+          if (m) m.textContent = r && r.message ? r.message : '';
+          await refreshDefaultBrowser();
         } catch (err) {
           try {
             if (api && api.openDefaultBrowserSystemSettings) {
@@ -561,7 +1115,7 @@ export function renderWelcomePage(options: WelcomePageOptions): string {
         }
       };
       void run();
-    });
+    };
   }
 })();
 </script>`

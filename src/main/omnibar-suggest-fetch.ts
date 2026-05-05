@@ -104,7 +104,7 @@ export async function fetchOmnibarSuggestionsForShell(query: string): Promise<st
   const q = query.trim()
   if (!q) return []
   const g = await fetchGoogleSuggestionsRaw(q).catch(() => [] as string[])
-  if (g.length) return prioritizeCompletions(g, q)
+  if (g.length) return prioritizeCompletions(g, q).slice(0, 8)
   const d = await fetchDdgSuggestionsRaw(q).catch(() => [] as string[])
-  return prioritizeCompletions(d, q)
+  return prioritizeCompletions(d, q).slice(0, 8)
 }

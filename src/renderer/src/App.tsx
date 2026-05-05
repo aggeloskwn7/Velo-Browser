@@ -18,6 +18,7 @@ import type {
   DownloadEntry,
   HistoryEntry,
   PasswordBarState,
+  SearchEngine,
   TabSnapshot,
   VeloSettings
 } from '@shared/ipc'
@@ -33,9 +34,9 @@ import {
 } from '@shared/constants'
 import { ChromeOverflowMenu } from './ChromeOverflowMenu'
 import {
-  buildHistorySuggestions,
-  mergeSearchSuggestions,
-  searchEngineLabel,
+  buildOmnibarSuggestions,
+  getInlineAutocompleteCandidate,
+  splitHighlightParts,
   type OmnibarSuggestionRow
 } from './omnibar-suggest'
 import {
@@ -55,6 +56,8 @@ import {
   IconLock,
   IconInfo,
   IconTabClose,
+  IconAppWindow,
+  IconGear,
   IconWinClose,
   IconWinMaximize,
   IconWinMinimize
@@ -106,6 +109,42 @@ function omnibarPrettyFromTabUrl(url: string): string {
   return omnibarStripHttpSchemes(omnibarDisplayFromUrl(url))
 }
 
+function OmnibarPrimaryHighlight(props: { text: string; query: string }): JSX.Element {
+  const parts = splitHighlightParts(props.text, props.query)
+  return (
+    <>
+      {parts.map((p, i) =>
+        p.em ? (
+          <mark key={i} className="omnibar-suggest-hl">
+            {p.text}
+          </mark>
+        ) : (
+          <span key={i}>{p.text}</span>
+        )
+      )}
+    </>
+  )
+}
+
+function omnibarSuggestIconEl(icon: OmnibarSuggestionRow['icon'], size: number): JSX.Element {
+  switch (icon) {
+    case 'search':
+      return <IconSearch size={size} />
+    case 'globe':
+      return <IconGlobe size={size} />
+    case 'history':
+      return <IconHistory size={size} />
+    case 'bookmark':
+      return <IconStarFilled size={size} />
+    case 'tab':
+      return <IconAppWindow size={size} />
+    case 'velo':
+      return <IconGear size={size} />
+    default:
+      return <IconGlobe size={size} />
+  }
+}
+
 type OmnibarPageSecurity = 'search' | 'https' | 'http'
 
 function omnibarPageSecurity(url: string | undefined): OmnibarPageSecurity {
@@ -137,6 +176,24 @@ function formatSizeBytes(n: number): string {
   if (n < 1024) return `${Math.round(n)} B`
   if (n < 1048576) return `${(n / 1024).toFixed(1)} KB`
   return `${(n / 1048576).toFixed(1)} MB`
+}
+
+function formatDownloadStartedLabel(ts: number): string {
+  if (!Number.isFinite(ts) || ts <= 0) return ''
+  const d = new Date(ts)
+  const now = new Date()
+  const opts: Intl.DateTimeFormatOptions = {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit'
+  }
+  if (d.getFullYear() !== now.getFullYear()) opts.year = 'numeric'
+  try {
+    return d.toLocaleString(undefined, opts)
+  } catch {
+    return ''
+  }
 }
 
 function formatSpeedBps(bps: number): string {
@@ -203,6 +260,8 @@ export default function App(): JSX.Element {
   const [defaultBrowserStatus, setDefaultBrowserStatus] = useState<DefaultBrowserStatusPayload | null>(null)
   const [defaultBrowserPromptDismissedSession, setDefaultBrowserPromptDismissedSession] = useState(false)
   const [historyForSuggest, setHistoryForSuggest] = useState<HistoryEntry[]>([])
+  const [bookmarksForSuggest, setBookmarksForSuggest] = useState<Array<{ url: string; title: string }>>([])
+  const [searchEngine, setSearchEngine] = useState<SearchEngine>('google')
   const [omnibarRemotePhrases, setOmnibarRemotePhrases] = useState<string[]>([])
   const [omnibarSuggestIndex, setOmnibarSuggestIndex] = useState(0)
   const [omnibarSuggestPos, setOmnibarSuggestPos] = useState<{
@@ -211,6 +270,9 @@ export default function App(): JSX.Element {
     width: number
   } | null>(null)
   const omnibarRef = useRef<HTMLInputElement>(null)
+  const omnibarRawRef = useRef('')
+  /** When true, skip re-applying ghost inline completion until the user types again, refocuses, or explicitly accepts inline (Tab/ArrowRight). Not cleared by Backspace-driven input events. */
+  const omnibarSuppressInlineUntilInputRef = useRef(false)
   
   const omnibarSyncTabIdRef = useRef<number | null>(null)
   const omnibarWasFocusedRef = useRef(false)
@@ -300,6 +362,9 @@ export default function App(): JSX.Element {
     void window.velo.historyList(2500).then((rows) => {
       setHistoryForSuggest(rows)
     })
+    void window.velo.bookmarksList().then((list) => {
+      setBookmarksForSuggest(list.map((b) => ({ url: b.url, title: b.title })))
+    })
   }, [])
 
   useEffect(() => {
@@ -325,10 +390,25 @@ export default function App(): JSX.Element {
     if (!omnibarFocused) return []
     const q = omnibar.trim()
     if (!q) return []
-    const hist = buildHistorySuggestions(historyForSuggest, q, 12)
-    
-    return mergeSearchSuggestions(q, hist, omnibarRemotePhrases, 12, searchEngineLabel('google'))
-  }, [omnibarFocused, omnibar, historyForSuggest, omnibarRemotePhrases])
+    return buildOmnibarSuggestions({
+      query: q,
+      history: historyForSuggest,
+      bookmarks: bookmarksForSuggest,
+      openTabs: tabs,
+      remoteSuggestions: omnibarRemotePhrases,
+      searchEngine,
+      activeTabId: activeId
+    })
+  }, [
+    omnibarFocused,
+    omnibar,
+    historyForSuggest,
+    bookmarksForSuggest,
+    tabs,
+    omnibarRemotePhrases,
+    searchEngine,
+    activeId
+  ])
 
   const omnibarTrimRef = useRef('')
   useEffect(() => {
@@ -383,6 +463,40 @@ export default function App(): JSX.Element {
 
   const showOmnibarSuggest =
     omnibarFocused && omnibar.trim().length > 0 && omnibarSuggestRows.length > 0
+
+  useEffect(() => {
+    if (!showOmnibarSuggest) return
+    if (omnibarSuggestIndex === 0) return
+    setOmnibar(omnibarRawRef.current)
+  }, [omnibarSuggestIndex, showOmnibarSuggest])
+
+  useLayoutEffect(() => {
+    if (!showOmnibarSuggest || omnibarSuggestIndex !== 0) return
+    if (omnibarSuppressInlineUntilInputRef.current) return
+    const el = omnibarRef.current
+    if (!el || document.activeElement !== el) return
+    const rawTrim = omnibarRawRef.current.trim()
+    if (!rawTrim) return
+    if (el.selectionStart !== el.selectionEnd) return
+    if (el.selectionStart !== el.value.length) return
+    const cand = getInlineAutocompleteCandidate(rawTrim, omnibarSuggestRows)
+    if (!cand || cand.toLowerCase() === rawTrim.toLowerCase()) return
+    const next = cand
+    if (
+      el.value === next &&
+      el.selectionStart === rawTrim.length &&
+      el.selectionEnd === next.length
+    ) {
+      return
+    }
+    setOmnibar(next)
+    requestAnimationFrame(() => {
+      const e2 = omnibarRef.current
+      if (!e2 || e2.value !== next) return
+      const rLen = omnibarRawRef.current.trim().length
+      e2.setSelectionRange(rLen, next.length)
+    })
+  }, [showOmnibarSuggest, omnibarSuggestIndex, omnibarSuggestRows, omnibar])
 
   useLayoutEffect(() => {
     if (!showOmnibarSuggest) {
@@ -480,12 +594,14 @@ export default function App(): JSX.Element {
   useEffect(() => {
     void window.velo.settingsGet().then((s) => {
       applyShellPresentation(s)
+      setSearchEngine(s.searchEngine)
     })
   }, [])
 
   useEffect(() => {
     const off = window.velo.onSettingsChanged((s) => {
       applyShellPresentation(s)
+      setSearchEngine(s.searchEngine)
     })
     return off
   }, [])
@@ -539,6 +655,7 @@ export default function App(): JSX.Element {
 
   useEffect(() => {
     const sync = (): void => {
+      refreshHistorySuggest()
       if (!active?.url) {
         setIsBookmarked(false)
         return
@@ -549,7 +666,7 @@ export default function App(): JSX.Element {
     }
     window.addEventListener('velo-bookmarks-mutated', sync)
     return () => window.removeEventListener('velo-bookmarks-mutated', sync)
-  }, [active?.url])
+  }, [active?.url, refreshHistorySuggest])
 
   useEffect(() => {
     const onOpen = (e: Event): void => {
@@ -628,6 +745,7 @@ export default function App(): JSX.Element {
   useEffect(() => {
     if (!active) {
       setOmnibar('')
+      omnibarRawRef.current = ''
       omnibarSyncTabIdRef.current = null
       omnibarWasFocusedRef.current = false
       return
@@ -642,7 +760,9 @@ export default function App(): JSX.Element {
     omnibarWasFocusedRef.current = omnibarFocused
 
     if (!omnibarFocused) {
-      setOmnibar(omnibarPrettyFromTabUrl(active.url || ''))
+      const u = omnibarPrettyFromTabUrl(active.url || '')
+      setOmnibar(u)
+      omnibarRawRef.current = u
       return
     }
 
@@ -650,6 +770,7 @@ export default function App(): JSX.Element {
       omnibarPendingSelectAllRef.current = true
       const next = omnibarDisplayFromUrl(active.url || '')
       setOmnibar(next)
+      omnibarRawRef.current = next
       if (next === omnibar) {
         setOmnibarSelectNonce((n) => n + 1)
       }
@@ -1000,10 +1121,14 @@ export default function App(): JSX.Element {
 
   const onOmnibarFocus = useCallback(() => {
     setOmnibarFocused(true)
+    const v = omnibarRef.current?.value ?? ''
+    omnibarRawRef.current = v
+    omnibarSuppressInlineUntilInputRef.current = false
     refreshHistorySuggest()
   }, [refreshHistorySuggest])
 
   const onOmnibarBlur = useCallback(() => {
+    omnibarRawRef.current = omnibarRef.current?.value ?? omnibarRawRef.current
     setOmnibarFocused(false)
   }, [])
 
@@ -1032,6 +1157,8 @@ export default function App(): JSX.Element {
     }
   }, [active?.url, active?.title, active?.favicon])
 
+  const omnibarSuggestHlQuery = omnibarRawRef.current.trim()
+
   const omnibarSuggestEl =
     showOmnibarSuggest && omnibarSuggestPos
       ? createPortal(
@@ -1050,63 +1177,54 @@ export default function App(): JSX.Element {
             aria-label="Address bar suggestions"
             onPointerDown={(e) => e.preventDefault()}
           >
-            {omnibarSuggestRows.map((row, idx) => (
-              <button
-                key={row.key}
-                type="button"
-                className={`omnibar-suggest-row${idx === omnibarSuggestIndex ? ' is-active' : ''}`}
-                role="option"
-                aria-selected={idx === omnibarSuggestIndex}
-                onMouseEnter={() => setOmnibarSuggestIndex(idx)}
-                onClick={() => {
-                  void onNavigate(row.submitInput)
-                  omnibarRef.current?.blur()
-                }}
-              >
-                {row.source === 'search' ? (
+            {omnibarSuggestRows.map((row, idx) => {
+              const isNavigateUrl = row.type === 'url'
+              return (
+                <button
+                  key={row.key}
+                  type="button"
+                  className={`omnibar-suggest-row${idx === omnibarSuggestIndex ? ' is-active' : ''}`}
+                  role="option"
+                  aria-selected={idx === omnibarSuggestIndex}
+                  onMouseEnter={() => setOmnibarSuggestIndex(idx)}
+                  onClick={() => {
+                    if (row.tabId != null) void window.velo.tabsSetActive(row.tabId)
+                    else void onNavigate(row.submitInput)
+                    omnibarRef.current?.blur()
+                  }}
+                >
                   <span className="omnibar-suggest-ic" aria-hidden>
-                    <IconSearch size={17} />
+                    {omnibarSuggestIconEl(row.icon, 17)}
                   </span>
-                ) : row.source === 'navigate' ? (
-                  <span className="omnibar-suggest-ic" aria-hidden>
-                    <IconGlobe size={17} />
-                  </span>
-                ) : (
-                  <span className="omnibar-suggest-ic" aria-hidden>
-                    <IconHistory size={17} />
-                  </span>
-                )}
-                <span className="omnibar-suggest-row-main">
-                  {row.source === 'search' && row.secondary ? (
-                    <span className="omnibar-suggest-line">
-                      <span className="omnibar-suggest-primary">{row.primary}</span>
-                      <span className="omnibar-suggest-sep"> — </span>
-                      <span className="omnibar-suggest-engine">{row.secondary}</span>
-                    </span>
-                  ) : (
-                    <>
-                      <span
-                        className={
-                          row.source === 'navigate'
-                            ? 'omnibar-suggest-primary omnibar-suggest-primary--navigate'
-                            : 'omnibar-suggest-primary'
-                        }
-                      >
-                        {row.primary}
+                  <span className="omnibar-suggest-row-main">
+                    {row.type === 'search' && row.secondary ? (
+                      <span className="omnibar-suggest-line">
+                        <span className="omnibar-suggest-primary">
+                          <OmnibarPrimaryHighlight text={row.primary} query={omnibarSuggestHlQuery} />
+                        </span>
+                        <span className="omnibar-suggest-sep"> — </span>
+                        <span className="omnibar-suggest-engine">{row.secondary}</span>
                       </span>
-                      {row.secondary ? (
-                        <span className="omnibar-suggest-secondary">{row.secondary}</span>
-                      ) : null}
-                    </>
-                  )}
-                </span>
-                {row.source === 'history' ? (
-                  <span className="omnibar-suggest-badge">History</span>
-                ) : row.suggestBadge ? (
-                  <span className="omnibar-suggest-badge omnibar-suggest-badge--velo">{row.suggestBadge}</span>
-                ) : null}
-              </button>
-            ))}
+                    ) : (
+                      <>
+                        <span
+                          className={
+                            isNavigateUrl
+                              ? 'omnibar-suggest-primary omnibar-suggest-primary--navigate'
+                              : 'omnibar-suggest-primary'
+                          }
+                        >
+                          <OmnibarPrimaryHighlight text={row.primary} query={omnibarSuggestHlQuery} />
+                        </span>
+                        {row.secondary ? (
+                          <span className="omnibar-suggest-secondary">{row.secondary}</span>
+                        ) : null}
+                      </>
+                    )}
+                  </span>
+                </button>
+              )
+            })}
           </div>,
           document.body
         )
@@ -1117,18 +1235,20 @@ export default function App(): JSX.Element {
 
   const getDownloadToastLines = useCallback((d: DownloadEntry): { title: string; stat: string; detail: string } => {
     const title = d.filename
+    const when = formatDownloadStartedLabel(d.startedAt)
     if (d.fileRemovedFromDisk) {
-      return { title, stat: 'Deleted', detail: '' }
+      return { title, stat: 'Deleted', detail: when }
     }
     if (d.state === 'completed') {
+      const size = formatSizeBytes(d.totalBytes > 0 ? d.totalBytes : d.receivedBytes)
       return {
         title,
         stat: 'Done',
-        detail: formatSizeBytes(d.totalBytes > 0 ? d.totalBytes : d.receivedBytes)
+        detail: when ? `${when} · ${size}` : size
       }
     }
-    if (d.state === 'cancelled') return { title, stat: 'Stopped', detail: '' }
-    if (d.state === 'interrupted') return { title, stat: 'Failed', detail: '' }
+    if (d.state === 'cancelled') return { title, stat: 'Stopped', detail: when }
+    if (d.state === 'interrupted') return { title, stat: 'Failed', detail: when }
 
     const now = Date.now()
     const prev = downloadSampleRef.current.get(d.id)
@@ -1737,8 +1857,52 @@ export default function App(): JSX.Element {
               onMouseDown={onOmnibarMouseDown}
               onFocus={onOmnibarFocus}
               onBlur={onOmnibarBlur}
-              onChange={(e) => setOmnibar(e.target.value)}
+              onPaste={() => {
+                omnibarSuppressInlineUntilInputRef.current = false
+              }}
+              onChange={(e) => {
+                const v = e.target.value
+                omnibarRawRef.current = v
+                setOmnibar(v)
+              }}
               onKeyDown={(e) => {
+                if (e.key === 'Backspace' && omnibarSuggestIndex === 0) {
+                  const el = omnibarRef.current
+                  if (!el) return
+                  if (e.repeat) {
+                    omnibarSuppressInlineUntilInputRef.current = true
+                    return
+                  }
+                  const raw = omnibarRawRef.current
+                  const rawLen = raw.length
+                  const v = el.value
+                  const ss = el.selectionStart ?? 0
+                  const se = el.selectionEnd ?? 0
+                  const hasGhostSuffix = v.length > raw.length && v.toLowerCase().startsWith(raw.toLowerCase())
+                  const suffixIsSelectedRange = ss < se && se > rawLen
+                  if (hasGhostSuffix && suffixIsSelectedRange) {
+                    e.preventDefault()
+                    omnibarSuppressInlineUntilInputRef.current = true
+                    omnibarRawRef.current = raw
+                    setOmnibar(raw)
+                    requestAnimationFrame(() => {
+                      const e2 = omnibarRef.current
+                      if (!e2 || e2.value !== raw) return
+                      e2.setSelectionRange(raw.length, raw.length)
+                    })
+                    return
+                  }
+                }
+
+                if (
+                  e.key.length === 1 &&
+                  !e.ctrlKey &&
+                  !e.metaKey &&
+                  !e.altKey
+                ) {
+                  omnibarSuppressInlineUntilInputRef.current = false
+                }
+
                 if (e.key === 'ArrowDown' && showOmnibarSuggest) {
                   e.preventDefault()
                   setOmnibarSuggestIndex((i) => Math.min(omnibarSuggestRows.length - 1, i + 1))
@@ -1749,15 +1913,70 @@ export default function App(): JSX.Element {
                   setOmnibarSuggestIndex((i) => Math.max(0, i - 1))
                   return
                 }
+                if (e.key === 'ArrowRight' && showOmnibarSuggest && omnibarSuggestIndex === 0) {
+                  const el = omnibarRef.current
+                  if (
+                    el &&
+                    el.selectionStart != null &&
+                    el.selectionEnd != null &&
+                    el.selectionStart < el.selectionEnd &&
+                    el.selectionEnd === el.value.length
+                  ) {
+                    e.preventDefault()
+                    const v = el.value
+                    omnibarRawRef.current = v
+                    setOmnibar(v)
+                    omnibarSuppressInlineUntilInputRef.current = false
+                    requestAnimationFrame(() => {
+                      el.setSelectionRange(v.length, v.length)
+                    })
+                    return
+                  }
+                }
                 if (e.key === 'Tab' && !e.shiftKey && showOmnibarSuggest) {
                   e.preventDefault()
+                  const el = omnibarRef.current
+                  if (omnibarSuggestIndex === 0 && el && el.selectionStart! < el.selectionEnd!) {
+                    const v = el.value
+                    omnibarRawRef.current = v
+                    setOmnibar(v)
+                    omnibarSuppressInlineUntilInputRef.current = false
+                    requestAnimationFrame(() => el.setSelectionRange(v.length, v.length))
+                    return
+                  }
+                  if (omnibarSuggestIndex === 0) {
+                    const cand = getInlineAutocompleteCandidate(
+                      omnibarRawRef.current.trim(),
+                      omnibarSuggestRows
+                    )
+                    if (cand && el) {
+                      omnibarRawRef.current = cand
+                      setOmnibar(cand)
+                      omnibarSuppressInlineUntilInputRef.current = false
+                      requestAnimationFrame(() => el.setSelectionRange(cand.length, cand.length))
+                      return
+                    }
+                  }
                   const row =
                     omnibarSuggestRows[omnibarSuggestIndex] ?? omnibarSuggestRows[0] ?? null
-                  if (row) setOmnibar(row.fillDisplay)
+                  if (row) {
+                    omnibarRawRef.current = row.fillDisplay
+                    setOmnibar(row.fillDisplay)
+                  }
+                  omnibarSuppressInlineUntilInputRef.current = false
                   return
                 }
                 if (e.key === 'Escape' && showOmnibarSuggest) {
                   e.preventDefault()
+                  omnibarSuppressInlineUntilInputRef.current = true
+                  setOmnibar(omnibarRawRef.current)
+                  requestAnimationFrame(() => {
+                    const e2 = omnibarRef.current
+                    const r = omnibarRawRef.current
+                    if (e2 && e2.value === r) {
+                      e2.setSelectionRange(r.length, r.length)
+                    }
+                  })
                   omnibarRef.current?.blur()
                   return
                 }
@@ -1765,9 +1984,13 @@ export default function App(): JSX.Element {
                   if (showOmnibarSuggest) {
                     e.preventDefault()
                     const row = omnibarSuggestRows[omnibarSuggestIndex] ?? null
-                    const useRowSubmit =
-                      row != null && (row.source === 'history' || row.source === 'navigate')
-                    void onNavigate(useRowSubmit ? row.submitInput : omnibar)
+                    if (row?.tabId != null) {
+                      void window.velo.tabsSetActive(row.tabId)
+                      omnibarRef.current?.blur()
+                      return
+                    }
+                    void onNavigate(row?.submitInput ?? omnibarRawRef.current)
+                    omnibarRef.current?.blur()
                     return
                   }
                   void onNavigate()

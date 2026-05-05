@@ -729,6 +729,15 @@ html[data-chrome-theme='white'] .omnibar-suggest-row.is-active {
   white-space: nowrap;
 }
 
+.omnibar-suggest-hl {
+  background: color-mix(in srgb, var(--accent) 24%, transparent);
+  color: inherit;
+  font-weight: 700;
+  padding: 0 1px;
+  margin: 0 -1px;
+  border-radius: 2px;
+}
+
 .omnibar-suggest-row .omnibar-suggest-row-main > .omnibar-suggest-primary {
   font-weight: 600;
 }
@@ -923,7 +932,7 @@ html[data-chrome-theme='white'] .shell-overflow-panel {
   -webkit-app-region: no-drag;
   position: fixed;
   z-index: 10000;
-  width: min(296px, calc(100vw - 24px));
+  width: min(340px, calc(100vw - 24px));
   box-sizing: border-box;
   height: fit-content;
   display: flex;
@@ -1189,7 +1198,7 @@ html[data-chrome-theme='white'] .velo-update-toast {
 .download-toast-list {
   list-style: none;
   margin: 0;
-  padding: 2px 0;
+  padding: 8px 10px 10px;
   flex: none;
   min-height: 0;
   max-height: var(--download-list-max, 160px);
@@ -1197,6 +1206,9 @@ html[data-chrome-theme='white'] .velo-update-toast {
   overflow-y: auto;
   scrollbar-width: thin;
   scrollbar-color: var(--border) transparent;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .download-toast-list::-webkit-scrollbar {
@@ -1212,11 +1224,13 @@ html[data-chrome-theme='white'] .velo-update-toast {
   display: flex;
   flex-direction: column;
   padding: 10px 12px;
-  border-bottom: 1px solid var(--border);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid transparent;
 }
 
-.download-toast-row:last-child {
-  border-bottom: none;
+html[data-chrome-theme='white'] .download-toast-row {
+  background: rgba(0, 0, 0, 0.04);
 }
 
 .download-toast-row--openable {
@@ -1224,11 +1238,12 @@ html[data-chrome-theme='white'] .velo-update-toast {
 }
 
 .download-toast-row--openable:hover {
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.1);
+  border-color: color-mix(in srgb, var(--accent) 22%, var(--border));
 }
 
 html[data-chrome-theme='white'] .download-toast-row--openable:hover {
-  background: rgba(0, 0, 0, 0.04);
+  background: rgba(0, 0, 0, 0.07);
 }
 
 .download-toast-row-top {
@@ -1246,7 +1261,7 @@ html[data-chrome-theme='white'] .download-toast-row--openable:hover {
   white-space: nowrap;
   color: var(--text);
   font-size: 13px;
-  font-weight: 400;
+  font-weight: 500;
 }
 
 .download-toast-row-bar {
@@ -1301,14 +1316,13 @@ html[data-chrome-theme='white'] .download-toast-row-bar {
 .download-toast-sub {
   margin: 6px 0 0;
   padding: 0;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 400;
   font-variant-numeric: tabular-nums;
   color: var(--text-muted);
-  line-height: 1.35;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  line-height: 1.4;
+  white-space: normal;
+  word-break: break-word;
 }
 
 .download-toast-row--struck .download-toast-filename {

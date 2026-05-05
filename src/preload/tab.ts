@@ -12,7 +12,10 @@ import {
   type DefaultBrowserStatusPayload,
   type DefaultBrowserRegisterResult,
   type DefaultBrowserOpenSettingsPage,
-  type AutoUpdateStatusPayload
+  type AutoUpdateStatusPayload,
+  type BrowserDataDetectSourcesPayload,
+  type BrowserDataImportChromiumPayload,
+  type BrowserDataImportChromiumResult
 } from '../shared/ipc.js'
 
 interface VeloWindowMessageEvent {
@@ -128,7 +131,14 @@ const internal = {
   passwordVaultImport: (): Promise<{ imported: number }> => ipcRenderer.invoke(IPC.internalPasswordVaultImport),
   passwordVaultExport: (): Promise<
     { ok: true; path: string } | { ok: false; reason: string }
-  > => ipcRenderer.invoke(IPC.internalPasswordVaultExport)
+  > => ipcRenderer.invoke(IPC.internalPasswordVaultExport),
+
+  browserDataDetectSources: (): Promise<BrowserDataDetectSourcesPayload> =>
+    ipcRenderer.invoke(IPC.internalBrowserDataDetectSources),
+  browserDataImportChromium: (
+    opts: BrowserDataImportChromiumPayload
+  ): Promise<BrowserDataImportChromiumResult> =>
+    ipcRenderer.invoke(IPC.internalBrowserDataImportChromium, opts)
 }
 
 export type VeloPageApi = typeof internal

@@ -1,7 +1,7 @@
 {
   "name": "velo-browser",
   "productName": "Velo",
-  "version": "1.0.9",
+  "version": "1.1.0",
   "description": "Velo",
   "main": "./out/main/index.js",
   "type": "module",
@@ -44,6 +44,7 @@
       "public/**/*"
     ],
     "asar": true,
+    "asarUnpack": ["node_modules/sql.js/dist/**"],
     "afterPack": "./scripts/after-pack-win-icon.js",
     "extraMetadata": {
       "productName": "Velo"
@@ -101,12 +102,14 @@
     "electron-store": "^10.0.0",
     "electron-updater": "^6.8.3",
     "papaparse": "^5.5.3",
+    "sql.js": "^1.11.0",
     "zod": "^3.24.1"
   },
   "devDependencies": {
     "@types/papaparse": "^5.5.2",
     "@types/react": "^18.3.18",
     "@types/react-dom": "^18.3.5",
+    "@types/sql.js": "^1.4.9",
     "@vitejs/plugin-react": "^4.3.4",
     "cross-env": "^10.1.0",
     "electron": "^41.5.0",

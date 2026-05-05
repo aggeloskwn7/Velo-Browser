@@ -66,3 +66,71 @@ export async function removeHistoryEntries(ids: string[]): Promise<void> {
 export async function clearHistory(): Promise<void> {
   await persist([])
 }
+
+function normalizeImportHistoryUrl(url: string): string | null {
+  const t = url.trim()
+  if (!t) return null
+  try {
+    const u = new URL(t.startsWith('http:') || t.startsWith('https:') ? t : `https://${t.replace(/^\/+/, '')}`)
+    if (u.protocol === 'velo:' || u.protocol === 'data:') return null
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') return null
+    return u.href
+  } catch {
+    return null
+  }
+}
+
+export async function mergeHistoryFromImport(
+  rows: { url: string; title: string; visitedAt: number }[]
+): Promise<{ imported: number; skipped: number }> {
+  let imported = 0
+  let skipped = 0
+  const list = await load()
+  const byUrl = new Map<string, HistoryEntry>()
+  for (const e of list) {
+    const n = normalizeImportHistoryUrl(e.url)
+    if (n) byUrl.set(n, e)
+  }
+
+  rows.sort((a, b) => b.visitedAt - a.visitedAt)
+
+  for (const r of rows) {
+    const n = normalizeImportHistoryUrl(r.url)
+    if (!n) {
+      skipped++
+      continue
+    }
+    const title = (r.title?.trim() || n).slice(0, 512)
+    const vt = Number.isFinite(r.visitedAt)
+      ? Math.min(Math.max(Math.floor(r.visitedAt), 0), Date.now())
+      : Date.now()
+    const existing = byUrl.get(n)
+    if (existing) {
+      const newerTime = Math.max(existing.visitedAt, vt)
+      const newerTitle = vt >= existing.visitedAt ? title : existing.title
+      if (newerTime > existing.visitedAt || newerTitle !== existing.title) {
+        byUrl.set(n, {
+          ...existing,
+          title: newerTitle,
+          visitedAt: newerTime
+        })
+        imported++
+      } else {
+        skipped++
+      }
+    } else {
+      const entry: HistoryEntry = {
+        id: randomUUID(),
+        url: n,
+        title,
+        visitedAt: vt
+      }
+      byUrl.set(n, entry)
+      imported++
+    }
+  }
+
+  const next = [...byUrl.values()].sort((a, b) => b.visitedAt - a.visitedAt).slice(0, MAX_ENTRIES)
+  await persist(next)
+  return { imported, skipped }
+}

@@ -14,7 +14,8 @@ export const SETTINGS_PANEL_SLUGS = [
   'accessibility',
   'performance',
   'system',
-  'default-browser'
+  'default-browser',
+  'import'
 ] as const
 
 export type SettingsPanelSlug = (typeof SETTINGS_PANEL_SLUGS)[number]
@@ -29,7 +30,8 @@ const PANEL_TITLE: Record<SettingsPanelSlug, string> = {
   accessibility: 'Accessibility',
   performance: 'Performance',
   system: 'System',
-  'default-browser': 'Default browser'
+  'default-browser': 'Default browser',
+  import: 'Import browser data'
 }
 
 export function parseSettingsRoute(route: string): SettingsPanelSlug | null {
@@ -1189,6 +1191,282 @@ function panelSystem(): string {
 </script>`
 }
 
+function panelImportBrowserData(): string {
+  return `<h2 class="vp-set-h">Import browser data</h2>
+<p class="vp-set-note">Move your data from another Chromium-based browser into Velo.</p>
+<div id="imp-wrap" class="card" style="margin-top:0.75rem">
+  <p id="imp-platform" class="vp-set-note" style="display:none"></p>
+  <div id="imp-main">
+    <div class="vp-set-row" style="align-items:flex-start">
+      <div class="vp-set-row__text">
+        <div class="vp-set-row__title">Import from</div>
+        <p class="vp-set-row__desc">Choose a browser that stores data on this PC.</p>
+      </div>
+    </div>
+    <div id="imp-browser-btns" class="vp-imp-browser-row" role="group" aria-label="Browser source"></div>
+    <div id="imp-profile-row" class="vp-set-row" style="margin-top:0.85rem;display:none">
+      <div class="vp-set-row__text">
+        <label class="vp-set-row__title" for="imp-profile" style="display:block;margin-bottom:0.35rem">Profile</label>
+        <select id="imp-profile" style="min-width:12rem;padding:0.35rem 0.5rem;font-size:0.95rem"></select>
+      </div>
+    </div>
+    <fieldset id="imp-fieldset" style="border:none;margin:0;padding:0" disabled>
+      <legend class="vp-set-row__title" style="margin:0.75rem 0 0.5rem">Data to import</legend>
+      <label class="vp-imp-cb"><input type="checkbox" id="imp-hist" checked /> History</label>
+      <label class="vp-imp-cb"><input type="checkbox" id="imp-bm" checked /> Bookmarks/Favorites</label>
+      <label class="vp-imp-cb"><input type="checkbox" id="imp-dl" checked /> Downloads</label>
+    </fieldset>
+    <div style="margin-top:1rem">
+      <button type="button" id="imp-btn">Import</button>
+    </div>
+  </div>
+  <p id="imp-result" class="vp-set-note" style="margin-top:1rem;display:none;white-space:pre-line" role="status"></p>
+</div>
+<style>
+  .vp-imp-cb { display:flex; align-items:center; gap:0.5rem; margin:0.35rem 0; cursor:pointer; font-size:0.95rem; }
+  .vp-imp-cb input { width:1rem; height:1rem; }
+  .vp-imp-browser-row { display:flex; flex-wrap:wrap; gap:0.45rem; margin-top:0.65rem; }
+  .vp-imp-browser-row .vp-imp-browser-btn { margin-top:0; }
+  .vp-imp-browser-btn {
+    font-size:0.88rem;
+    padding:0.4rem 0.65rem;
+    border-radius:0.35rem;
+    border:1px solid var(--border);
+    background:var(--vel-input-bg);
+    color:var(--fg);
+    cursor:pointer;
+  }
+  .vp-imp-browser-btn:hover:not(:disabled) {
+    background:var(--vel-input-hover);
+  }
+  .vp-imp-browser-btn:disabled {
+    opacity:0.45;
+    cursor:not-allowed;
+  }
+  .vp-imp-browser-btn:disabled:hover {
+    background:var(--vel-input-bg);
+  }
+  .vp-imp-browser-btn[data-active="1"] {
+    border-color:var(--accent);
+    box-shadow:0 0 0 1px color-mix(in srgb, var(--accent) 50%, var(--border));
+    font-weight:600;
+    background:color-mix(in srgb, var(--accent) 14%, var(--vel-input-bg));
+    color:var(--fg);
+  }
+  .vp-imp-browser-btn[data-active="1"]:hover:not(:disabled) {
+    background:color-mix(in srgb, var(--accent) 20%, var(--vel-input-hover));
+  }
+</style>
+<script>
+(function(){
+  var api = window.veloPage;
+  function el(id){ return document.getElementById(id); }
+  var BROWSERS = [
+    { id: 'edge', label: 'Microsoft Edge' },
+    { id: 'chrome', label: 'Google Chrome' },
+    { id: 'brave', label: 'Brave' },
+    { id: 'opera', label: 'Opera' },
+    { id: 'opera-gx', label: 'Opera GX' }
+  ];
+  var state = { sourcesById: {}, selectedBrowserId: null };
+  function setBusy(b){
+    var btn = el('imp-btn');
+    var fs = el('imp-fieldset');
+    if (btn) btn.disabled = b;
+    if (fs) fs.disabled = b;
+  }
+  function currentProfile(){
+    var sid = state.selectedBrowserId;
+    var src = sid ? state.sourcesById[sid] : null;
+    if (!src || !src.available || !src.profiles.length) return null;
+    var sel = el('imp-profile');
+    var pid = sel && sel.value ? sel.value : src.profiles[0].id;
+    for (var i = 0; i < src.profiles.length; i++) {
+      if (src.profiles[i].id === pid) return src.profiles[i];
+    }
+    return src.profiles[0];
+  }
+  function syncCheckboxesFromProfile(){
+    var p = currentProfile();
+    var fs = el('imp-fieldset');
+    var h = el('imp-hist');
+    var b = el('imp-bm');
+    var dl = el('imp-dl');
+    if (!p) {
+      if (fs) fs.disabled = true;
+      return;
+    }
+    if (fs) fs.disabled = false;
+    if (h) { h.disabled = !p.hasHistory; if (h.disabled) h.checked = false; else if (!h.hasAttribute('data-touched')) h.checked = true; }
+    if (b) { b.disabled = !p.hasBookmarks; if (b.disabled) b.checked = false; else if (!b.hasAttribute('data-touched')) b.checked = true; }
+    if (dl) {
+      dl.disabled = !p.hasHistory;
+      if (dl.disabled) dl.checked = false;
+      else if (!dl.hasAttribute('data-touched')) dl.checked = true;
+    }
+  }
+  function onBrowserSelect(id){
+    state.selectedBrowserId = id;
+    var h0 = el('imp-hist'), b0 = el('imp-bm'), dl0 = el('imp-dl');
+    if (h0) h0.removeAttribute('data-touched');
+    if (b0) b0.removeAttribute('data-touched');
+    if (dl0) dl0.removeAttribute('data-touched');
+    var row = el('imp-browser-btns');
+    if (row) {
+      var btns = row.querySelectorAll('.vp-imp-browser-btn');
+      for (var i = 0; i < btns.length; i++) {
+        btns[i].setAttribute('data-active', btns[i].getAttribute('data-bid') === id ? '1' : '0');
+      }
+    }
+    var src = state.sourcesById[id];
+    var prow = el('imp-profile-row');
+    var sel = el('imp-profile');
+    if (!src || !src.available || !src.profiles.length) {
+      if (prow) prow.style.display = 'none';
+      syncCheckboxesFromProfile();
+      return;
+    }
+    if (prow) prow.style.display = src.profiles.length > 1 ? 'block' : 'none';
+    if (sel) {
+      sel.innerHTML = '';
+      for (var j = 0; j < src.profiles.length; j++) {
+        var pr = src.profiles[j];
+        var opt = document.createElement('option');
+        opt.value = pr.id;
+        opt.textContent = pr.name;
+        sel.appendChild(opt);
+      }
+    }
+    syncCheckboxesFromProfile();
+  }
+  ['imp-hist','imp-bm','imp-dl'].forEach(function(cid){
+    var n = el(cid);
+    if (n) n.addEventListener('change', function(){ n.setAttribute('data-touched','1'); });
+  });
+  async function loadDetect(){
+    var plat = el('imp-platform');
+    var main = el('imp-main');
+    var row = el('imp-browser-btns');
+    if (!api || !api.browserDataDetectSources) {
+      if (plat) {
+        plat.style.display = 'block';
+        plat.textContent = 'Internal API unavailable.';
+      }
+      if (main) main.style.display = 'none';
+      return;
+    }
+    var d = await api.browserDataDetectSources();
+    state.sourcesById = {};
+    var any = false;
+    for (var i = 0; i < d.sources.length; i++) {
+      state.sourcesById[d.sources[i].id] = d.sources[i];
+      if (d.sources[i].available) any = true;
+    }
+    if (!any) {
+      if (plat) {
+        plat.style.display = 'block';
+        plat.textContent = 'No Chromium profiles were found. On Windows, install Microsoft Edge, Google Chrome, Brave, or Opera, use it at least once, then try again. (Import is only available on Windows in this version.)';
+      }
+      if (main) main.style.display = 'none';
+      return;
+    }
+    if (plat) plat.style.display = 'none';
+    if (main) main.style.display = 'block';
+    if (row) {
+      row.innerHTML = '';
+      for (var b = 0; b < BROWSERS.length; b++) {
+        var def = BROWSERS[b];
+        var src = state.sourcesById[def.id];
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'vp-imp-browser-btn';
+        btn.setAttribute('data-bid', def.id);
+        btn.textContent = src && src.available ? def.label : def.label + ' — unavailable';
+        btn.disabled = !src || !src.available;
+        btn.onclick = function(){
+          var bid = this.getAttribute('data-bid');
+          if (!bid || !state.sourcesById[bid] || !state.sourcesById[bid].available) return;
+          onBrowserSelect(bid);
+        };
+        row.appendChild(btn);
+      }
+    }
+    var prSel = el('imp-profile');
+    if (prSel) prSel.onchange = function(){ syncCheckboxesFromProfile(); };
+    var first = null;
+    for (var k = 0; k < BROWSERS.length; k++) {
+      var s = state.sourcesById[BROWSERS[k].id];
+      if (s && s.available) { first = BROWSERS[k].id; break; }
+    }
+    if (first) onBrowserSelect(first);
+  }
+  var impBtn = el('imp-btn');
+  if (impBtn) impBtn.onclick = async function(){
+    var resEl = el('imp-result');
+    if (!api || !api.browserDataImportChromium) return;
+    if (resEl) { resEl.style.display = 'none'; resEl.textContent = ''; }
+    var sid = state.selectedBrowserId;
+    var src = sid ? state.sourcesById[sid] : null;
+    if (!src || !src.available) {
+      if (resEl) {
+        resEl.style.display = 'block';
+        resEl.textContent = 'Select an available browser.';
+      }
+      return;
+    }
+    var pr = currentProfile();
+    if (!pr) {
+      if (resEl) {
+        resEl.style.display = 'block';
+        resEl.textContent = 'No profile selected.';
+      }
+      return;
+    }
+    var hist = el('imp-hist').checked;
+    var bm = el('imp-bm').checked;
+    var dl = el('imp-dl').checked;
+    if (!hist && !bm && !dl) {
+      if (resEl) {
+        resEl.style.display = 'block';
+        resEl.textContent = 'Select at least one type of data to import.';
+      }
+      return;
+    }
+    setBusy(true);
+    try {
+      var r = await api.browserDataImportChromium({
+        browserId: sid,
+        profileId: pr.id,
+        history: hist,
+        bookmarks: bm,
+        downloads: dl
+      });
+      if (resEl) {
+        resEl.style.display = 'block';
+        var lines = [];
+        var bits = [];
+        if (r.imported.history > 0) bits.push(r.imported.history + ' history entries');
+        if (r.imported.bookmarks > 0) bits.push(r.imported.bookmarks + ' bookmarks');
+        if (r.imported.downloads > 0) bits.push(r.imported.downloads + ' downloads');
+        if (bits.length > 0) lines.push('Imported ' + bits.join(', ') + '.');
+        else if (r.errors.length === 0) lines.push('No new items were imported. You may have already imported this data, or the selected source was empty.');
+        for (var i = 0; i < r.errors.length; i++) lines.push(r.errors[i]);
+        resEl.textContent = lines.join('\\n');
+      }
+    } catch (e) {
+      if (resEl) {
+        resEl.style.display = 'block';
+        resEl.textContent = e && e.message ? String(e.message) : 'Import failed.';
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+  void loadDetect();
+})();
+</script>`
+}
+
 function panelDefaultBrowser(): string {
   return `<h2 class="vp-set-h">Default browser</h2>
 <p class="vp-set-note">Use Velo for web links from other apps (HTTP and HTTPS).</p>
@@ -1244,7 +1522,8 @@ const PANEL_HTML: Record<SettingsPanelSlug, () => string> = {
   accessibility: panelAccessibility,
   performance: panelPerformance,
   system: panelSystem,
-  'default-browser': panelDefaultBrowser
+  'default-browser': panelDefaultBrowser,
+  import: panelImportBrowserData
 }
 
 

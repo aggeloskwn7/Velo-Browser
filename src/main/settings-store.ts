@@ -555,3 +555,78 @@ export function reorderNewTabShortcuts(orderedIds: string[]): void {
   }
   store.set('newTabShortcuts', next)
 }
+
+export type BookmarkImportRow = {
+  url: string
+  title: string
+  folderPath: string[]
+  createdAt: number
+}
+
+export function mergeBookmarksFromImport(rows: BookmarkImportRow[]): { imported: number; skipped: number } {
+  let imported = 0
+  let skipped = 0
+  const keySet = new Set<string>()
+  for (const b of store.get('bookmarks')) {
+    const nb = normalizeBookmarkEntry(b)
+    keySet.add(`${nb.folderId}\t${nb.url}`)
+  }
+
+  for (const r of rows) {
+    let u = r.url.trim()
+    if (!u) {
+      skipped++
+      continue
+    }
+    if (!/^https?:\/\//i.test(u) && !u.startsWith('velo://')) {
+      u = `https://${u.replace(/^\/+/, '')}`
+    }
+    try {
+      const parsed = new URL(u)
+      if (parsed.protocol === 'velo:' || parsed.protocol === 'data:') {
+        skipped++
+        continue
+      }
+      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+        skipped++
+        continue
+      }
+    } catch {
+      skipped++
+      continue
+    }
+
+    const segments = r.folderPath.filter((s) => typeof s === 'string' && s.trim().length > 0)
+    const folderLabel = segments.length > 0 ? segments.join(' / ').slice(0, 64) : 'Imported'
+    let folderId = DEFAULT_BOOKMARK_FOLDER_ID
+    if (folderLabel !== 'Bookmarks') {
+      const folders = listBookmarkFolders()
+      let f = folders.find((x) => x.name === folderLabel)
+      if (!f) {
+        f = addBookmarkFolder(folderLabel)
+      }
+      folderId = f.id
+    }
+
+    const title = (r.title?.trim() || u).slice(0, 512)
+    const k = `${folderId}\t${u}`
+    if (keySet.has(k)) {
+      skipped++
+      continue
+    }
+    keySet.add(k)
+    const entryStored: BookmarkEntryStored = {
+      id: randomUUID(),
+      url: u,
+      title,
+      createdAt: Number.isFinite(r.createdAt)
+        ? Math.min(Math.max(0, Math.floor(r.createdAt)), Date.now())
+        : Date.now(),
+      folderId,
+      favicon: null
+    }
+    store.set('bookmarks', [entryStored, ...store.get('bookmarks')])
+    imported++
+  }
+  return { imported, skipped }
+}

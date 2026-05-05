@@ -4,6 +4,7 @@ import { z } from 'zod'
 import {
   IPC,
   NEW_TAB_BACKGROUND_PRESETS,
+  BROWSER_DATA_CHROMIUM_IDS,
   type VeloSettings,
   type PasswordBarState,
   type NewTabBackgroundPreset
@@ -34,6 +35,8 @@ import {
   getAutoUpdateStatus,
   quitAndInstallUpdate
 } from './auto-updater.js'
+import * as browserDataImport from './import-browser-data.js'
+import type { ImportChromiumBrowserOptions } from './import-browser-data.js'
 
 function requireManager() {
   const m = TabManager.manager
@@ -170,6 +173,20 @@ const newTabShortcutUpdate = z.object({
 const newTabShortcutRemove = z.object({ id: z.string().uuid() })
 const newTabShortcutsReorder = z.object({
   orderedIds: z.array(z.string().uuid())
+})
+const browserDataChromiumBrowserIdSchema = z.enum(
+  BROWSER_DATA_CHROMIUM_IDS as unknown as [string, string, ...string[]]
+)
+const browserDataImportChromiumPayload = z.object({
+  browserId: browserDataChromiumBrowserIdSchema,
+  profileId: z
+    .string()
+    .min(1)
+    .max(200)
+    .refine((s) => !s.includes('..') && !/[\\/]/.test(s), 'Invalid profile id'),
+  history: z.boolean(),
+  bookmarks: z.boolean(),
+  downloads: z.boolean()
 })
 const historyRemovePayload = z.object({
   ids: z.array(z.string().min(1).max(64)).min(1).max(500)
@@ -479,6 +496,17 @@ export function registerIpcHandlers(): void {
       console.error('[velo IPC] internalNewTabShortcutsReorder failed', err)
       throw err
     }
+  })
+
+  ipcMain.handle(IPC.internalBrowserDataDetectSources, (e) => {
+    assertVeloPage(e.sender)
+    return browserDataImport.detectChromiumSources()
+  })
+
+  ipcMain.handle(IPC.internalBrowserDataImportChromium, async (e, raw) => {
+    assertVeloPage(e.sender)
+    const opts = browserDataImportChromiumPayload.parse(raw)
+    return await browserDataImport.importFromChromiumBrowser(opts as ImportChromiumBrowserOptions)
   })
 
   ipcMain.handle(IPC.internalNavigateSearch, (e, raw) => {

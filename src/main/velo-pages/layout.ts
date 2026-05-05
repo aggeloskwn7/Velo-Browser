@@ -520,6 +520,9 @@ const VP_SIDE_ICONS: Record<string, string> = {
   'default-browser': VP_SVG(
     '<rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/>'
   ),
+  import: VP_SVG(
+    '<path d="M12 3v12"/><path d="M8 11l4 4 4-4"/><path d="M4 21h16"/>'
+  ),
   history: VP_SVG('<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>'),
   bookmarks: VP_SVG('<path d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2v16z"/>'),
   downloads: VP_SVG(
@@ -546,7 +549,8 @@ export function veloSettingsSidebarHtml(activeSlug: string): string {
     { slug: 'accessibility', label: 'Accessibility' },
     { slug: 'performance', label: 'Performance' },
     { slug: 'system', label: 'System' },
-    { slug: 'default-browser', label: 'Default browser' }
+    { slug: 'default-browser', label: 'Default browser' },
+    { slug: 'import', label: 'Import browser data' }
   ]
   const library: { slug: string; label: string }[] = [
     { slug: 'history', label: 'History' },

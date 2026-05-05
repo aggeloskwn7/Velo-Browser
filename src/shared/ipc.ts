@@ -89,6 +89,8 @@ export const IPC = {
   internalNewTabShortcutUpdate: 'velo:internal:newtab:shortcuts:update',
   internalNewTabShortcutRemove: 'velo:internal:newtab:shortcuts:remove',
   internalNewTabShortcutsReorder: 'velo:internal:newtab:shortcuts:reorder',
+  internalBrowserDataDetectSources: 'velo:internal:browser-data:detect-sources',
+  internalBrowserDataImportChromium: 'velo:internal:browser-data:import-chromium',
   internalNavigateSearch: 'velo:internal:navigate:search',
   internalNavigateUrl: 'velo:internal:navigate:url',
   
@@ -337,4 +339,42 @@ export type DownloadEntry = {
   startedAt: number
   
   fileRemovedFromDisk?: boolean
+}
+
+export const BROWSER_DATA_CHROMIUM_IDS = ['edge', 'chrome', 'brave', 'opera', 'opera-gx'] as const
+
+export type BrowserDataChromiumBrowserId = (typeof BROWSER_DATA_CHROMIUM_IDS)[number]
+
+export type BrowserDataSourceProfile = {
+  id: string
+  name: string
+  path: string
+  hasHistory: boolean
+  hasBookmarks: boolean
+}
+
+export type BrowserDataSource = {
+  id: BrowserDataChromiumBrowserId
+  displayName: string
+  available: boolean
+  profiles: BrowserDataSourceProfile[]
+}
+
+export type BrowserDataDetectSourcesPayload = {
+  sources: BrowserDataSource[]
+}
+
+export type BrowserDataImportChromiumPayload = {
+  browserId: BrowserDataChromiumBrowserId
+  profileId: string
+  history: boolean
+  bookmarks: boolean
+  downloads: boolean
+}
+
+export type BrowserDataImportChromiumResult = {
+  browserId: BrowserDataChromiumBrowserId
+  imported: { history: number; bookmarks: number; downloads: number }
+  skipped: { history: number; bookmarks: number; downloads: number }
+  errors: string[]
 }

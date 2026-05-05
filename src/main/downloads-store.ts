@@ -55,6 +55,7 @@ export async function initDownloadsStore(): Promise<void> {
     if (arr.success) {
       const normalized = arr.data.map((e) => normalizeLoadedEntry(e as DownloadEntry)).slice(0, MAX_ITEMS)
       items.push(...normalized)
+      trimDownloadsToMaxItems()
     }
   } catch {}
   initDone = true
@@ -89,6 +90,16 @@ function schedulePersist(): void {
   }, PERSIST_DEBOUNCE_MS)
 }
 
+/** Keep the newest MAX_ITEMS by startedAt (import used to unshift in Edge row order and truncate wrong end). */
+function trimDownloadsToMaxItems(): void {
+  if (items.length <= MAX_ITEMS) return
+  const sorted = [...items].sort((a, b) => {
+    if (b.startedAt !== a.startedAt) return b.startedAt - a.startedAt
+    return b.id.localeCompare(a.id)
+  })
+  items.length = 0
+  items.push(...sorted.slice(0, MAX_ITEMS))
+}
 
 export function flushDownloadsToDisk(): void {
   if (persistTimer != null) {
@@ -174,7 +185,7 @@ export function trackDownload(item: DownloadItem): void {
     startedAt: Date.now()
   }
   items.unshift(entry)
-  if (items.length > MAX_ITEMS) items.length = MAX_ITEMS
+  trimDownloadsToMaxItems()
   itemByEntryId.set(id, item)
   emitUpdated()
 
@@ -236,7 +247,10 @@ export function trackDownload(item: DownloadItem): void {
 }
 
 export function listDownloads(): DownloadEntry[] {
-  return [...items]
+  return [...items].sort((a, b) => {
+    if (b.startedAt !== a.startedAt) return b.startedAt - a.startedAt
+    return b.id.localeCompare(a.id)
+  })
 }
 
 export function removeDownload(id: string): boolean {
@@ -245,4 +259,54 @@ export function removeDownload(id: string): boolean {
   items.splice(i, 1)
   emitUpdated()
   return true
+}
+
+function downloadDedupeKey(pathStr: string, startedAt: number): string {
+  return `${pathStr}\t${Math.floor(startedAt / 1000)}`
+}
+
+export function mergeDownloadsFromImport(
+  rows: Array<{
+    filename: string
+    path: string
+    state: DownloadEntry['state']
+    receivedBytes: number
+    totalBytes: number
+    startedAt: number
+  }>
+): { imported: number; skipped: number } {
+  let imported = 0
+  let skipped = 0
+  const seen = new Set<string>()
+  for (const e of items) {
+    if (e.path) seen.add(downloadDedupeKey(e.path, e.startedAt))
+  }
+  for (const r of rows) {
+    const p = r.path?.trim() ?? ''
+    if (!p) {
+      skipped++
+      continue
+    }
+    const started = Number.isFinite(r.startedAt) ? Math.floor(r.startedAt) : Date.now()
+    const dk = downloadDedupeKey(p, started)
+    if (seen.has(dk)) {
+      skipped++
+      continue
+    }
+    seen.add(dk)
+    const entry: DownloadEntry = {
+      id: randomUUID(),
+      filename: r.filename || basename(p),
+      path: p,
+      state: r.state,
+      receivedBytes: Math.max(0, Math.floor(r.receivedBytes)),
+      totalBytes: Math.max(0, Math.floor(r.totalBytes)),
+      startedAt: started
+    }
+    items.push(entry)
+    imported++
+  }
+  trimDownloadsToMaxItems()
+  if (imported > 0) emitUpdated()
+  return { imported, skipped }
 }
