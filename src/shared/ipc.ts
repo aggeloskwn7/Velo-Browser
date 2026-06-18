@@ -6,6 +6,25 @@ export const IPC = {
   tabsSetActive: 'velo:tabs:set-active',
   tabsGetState: 'velo:tabs:get-state',
   tabsUpdated: 'velo:tabs:updated',
+  tabsPin: 'velo:tabs:pin',
+  tabsUnpin: 'velo:tabs:unpin',
+  tabsSetMuted: 'velo:tabs:set-muted',
+
+  tabsSplitCreate: 'velo:tabs:split-create',
+  tabsSplitExit: 'velo:tabs:split-exit',
+  tabsSplitSetRatio: 'velo:tabs:split-set-ratio',
+  tabsSplitSetFocus: 'velo:tabs:split-set-focus',
+  tabsSplitSwap: 'velo:tabs:split-swap',
+
+  splitDividerDragStart: 'velo:split-divider:drag-start',
+  splitDividerDragMove: 'velo:split-divider:drag-move',
+  splitDividerDragEnd: 'velo:split-divider:drag-end',
+  workspacesCreate: 'velo:workspaces:create',
+  workspacesRename: 'velo:workspaces:rename',
+  workspacesDelete: 'velo:workspaces:delete',
+  workspacesReorder: 'velo:workspaces:reorder',
+  workspacesSwitch: 'velo:workspaces:switch',
+  workspacesUpdated: 'velo:workspaces:updated',
 
   navSubmit: 'velo:nav:submit',
   navBack: 'velo:nav:back',
@@ -119,6 +138,8 @@ export const IPC = {
   internalPasswordVaultImport: 'velo:internal:password-vault:import',
   internalPasswordVaultExport: 'velo:internal:password-vault:export',
 
+  internalClearBrowsingData: 'velo:internal:clear-browsing-data',
+
   
   adblockToast: 'velo:adblock:toast',
 
@@ -133,6 +154,17 @@ export const IPC = {
   passwordBarDismiss: 'velo:password-bar:dismiss'
 } as const
 
+export type SplitPaneSnapshot = {
+  tabId: number
+  url: string
+  title: string
+  favicon: string | null
+  isLoading: boolean
+  canGoBack: boolean
+  canGoForward: boolean
+  muted?: boolean
+}
+
 export type TabSnapshot = {
   id: number
   url: string
@@ -143,12 +175,40 @@ export type TabSnapshot = {
   canGoForward: boolean
   
   isResting?: boolean
+  pinned?: boolean
+  muted?: boolean
+
+  /** Present when this tab strip entry is a split-view pair (id = left pane tab id). */
+  split?: {
+    left: SplitPaneSnapshot
+    right: SplitPaneSnapshot
+    ratio: number
+    focusedPane: 'left' | 'right'
+  }
 }
 
 
 export type TabsStatePayload = {
   tabs: TabSnapshot[]
   activeId: number | null
+  /** Tab id that receives nav / keyboard focus (focused split pane when in split view). */
+  focusedTabId: number | null
+}
+
+export type SplitExitMode = 'both' | 'left' | 'right'
+
+export type WorkspaceSnapshot = {
+  id: string
+  name: string
+  icon: string | null
+  createdAt: number
+  tabCount: number
+  active: boolean
+}
+
+export type WorkspacesStatePayload = {
+  workspaces: WorkspaceSnapshot[]
+  activeWorkspaceId: string
 }
 
 export type SearchEngine = 'google' | 'bing' | 'duckduckgo' | 'brave' | 'ecosia'
@@ -377,4 +437,25 @@ export type BrowserDataImportChromiumResult = {
   imported: { history: number; bookmarks: number; downloads: number }
   skipped: { history: number; bookmarks: number; downloads: number }
   errors: string[]
+}
+
+export type ClearBrowsingDataTimeRange = 'hour' | 'day' | 'week' | 'month' | 'all'
+
+export type ClearBrowsingDataPayload = {
+  history: boolean
+  cookies: boolean
+  cache: boolean
+  passwords: boolean
+  downloads: boolean
+  timeRange: ClearBrowsingDataTimeRange
+}
+
+export type ClearBrowsingDataResult = {
+  cleared: {
+    history: number
+    cookies: boolean
+    cache: boolean
+    passwords: number
+    downloads: number
+  }
 }

@@ -12,12 +12,22 @@ const base = (size: number): Pick<SVGProps<SVGSVGElement>, 'width' | 'height' | 
 export function IconBack({ size = 18, ...p }: IconProps): JSX.Element {
   return (
     <svg {...base(size)} aria-hidden {...p}>
+      <path d="m12 19-7-7 7-7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M19 12H5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+export function IconChevronDown({ size = 18, ...p }: IconProps): JSX.Element {
+  return (
+    <svg {...base(size)} aria-hidden {...p}>
       <path
-        d="M15 6l-6 6 6 6"
+        d="M6 9l6 6 6-6"
         stroke="currentColor"
         strokeWidth="2"
         strokeLinecap="round"
         strokeLinejoin="round"
+        fill="none"
       />
     </svg>
   )
@@ -26,13 +36,8 @@ export function IconBack({ size = 18, ...p }: IconProps): JSX.Element {
 export function IconForward({ size = 18, ...p }: IconProps): JSX.Element {
   return (
     <svg {...base(size)} aria-hidden {...p}>
-      <path
-        d="M9 6l6 6-6 6"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
+      <path d="M5 12h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="m12 5 7 7-7 7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   )
 }
@@ -41,19 +46,13 @@ export function IconReload({ size = 18, ...p }: IconProps): JSX.Element {
   return (
     <svg {...base(size)} aria-hidden {...p}>
       <path
-        d="M23 4v6h-6"
+        d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"
         stroke="currentColor"
         strokeWidth="2"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
-      <path
-        d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
+      <path d="M21 3v5h-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   )
 }
@@ -69,11 +68,38 @@ export function IconStop({ size = 18, ...p }: IconProps): JSX.Element {
 export function IconPlus({ size = 18, ...p }: IconProps): JSX.Element {
   return (
     <svg {...base(size)} aria-hidden {...p}>
+      <path d="M5 12h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M12 5v14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+export function IconStarPlus({ size = 20, ...p }: IconProps): JSX.Element {
+  return (
+    <svg {...base(size)} aria-hidden {...p}>
       <path
-        d="M12 6v12M6 12h12"
+        d="M11.013 18.582 6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.12 2.12 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.12 2.12 0 0 0 1.597-1.16l2.309-4.679a.53.53 0 0 1 .95 0l2.31 4.679a2.12 2.12 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904L20 11.5"
         stroke="currentColor"
         strokeWidth="2"
         strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path d="M15 18h6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M18 15v6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+export function IconStarMinus({ size = 20, ...p }: IconProps): JSX.Element {
+  return (
+    <svg {...base(size)} aria-hidden {...p}>
+      <path d="M15 18h6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <path
+        d="M17.688 14a2.1 2.1 0 0 1 .416-.568l3.736-3.638a.53.53 0 0 0-.294-.905l-5.166-.755a2.1 2.1 0 0 1-1.595-1.16l-2.31-4.68a.53.53 0 0 0-.95.001L9.216 6.974a2.1 2.1 0 0 1-1.597 1.16l-5.165.755a.53.53 0 0 0-.294.906l3.736 3.637a2.1 2.1 0 0 1 .611 1.879l-.88 5.139a.53.53 0 0 0 .769.56l4.617-2.428.027-.014"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
       />
     </svg>
   )
@@ -109,13 +135,9 @@ export function IconStarFilled({ size = 20, ...p }: IconProps): JSX.Element {
 export function IconDownload({ size = 20, ...p }: IconProps): JSX.Element {
   return (
     <svg {...base(size)} aria-hidden {...p}>
-      <path
-        d="M12 4v11.5M8 11.5l4 4 4-4M4 19.5h16"
-        stroke="currentColor"
-        strokeWidth="1.75"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
+      <path d="M12 17V3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="m6 11 6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M19 21H5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   )
 }
@@ -180,12 +202,24 @@ export function IconShieldPrivacy({ size = 20, ...p }: IconProps): JSX.Element {
 export function IconLock({ size = 20, ...p }: IconProps): JSX.Element {
   return (
     <svg {...base(size)} aria-hidden {...p}>
-      <rect x="5" y="11" width="14" height="10" rx="2" stroke="currentColor" strokeWidth="2" />
-      <path
-        d="M8 11V8a4 4 0 0 1 8 0v3"
+      <rect
+        width="18"
+        height="11"
+        x="3"
+        y="11"
+        rx="2"
+        ry="2"
         stroke="currentColor"
         strokeWidth="2"
         strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M7 11V7a5 5 0 0 1 10 0v4"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
       />
     </svg>
   )
@@ -288,15 +322,22 @@ export function IconAppWindow({ size = 18, ...p }: IconProps): JSX.Element {
   )
 }
 
+export function IconSplitSwap({ size = 18, ...p }: IconProps): JSX.Element {
+  return (
+    <svg {...base(size)} aria-hidden {...p}>
+      <path d="M8 3 4 7l4 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M4 7h16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="m16 21 4-4-4-4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M20 17H4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
 export function IconTabClose({ size = 18, ...p }: IconProps): JSX.Element {
   return (
-    <svg width={size} height={size} viewBox="0 0 12 12" fill="none" aria-hidden {...p}>
-      <path
-        d="M3 3l6 6M9 3l-6 6"
-        stroke="currentColor"
-        strokeWidth="1.75"
-        strokeLinecap="round"
-      />
+    <svg {...base(size)} aria-hidden {...p}>
+      <path d="M18 6 6 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="m6 6 12 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   )
 }

@@ -4,6 +4,32 @@ All notable changes to Velo are documented here. Edit the **`## [x.y.z]`** secti
 
 The release workflow takes the section matching the tag (e.g. tag `v1.0.2` → heading `## [1.0.2]`) and uses it as the GitHub release description (plus auto-generated contributor/commit notes).
 
+## [2.0.0] - 2026-06-18
+
+### Added
+
+- Split View between tabs (Right click on the tab you want to split view)
+
+- Workspaces (top left arrow down)
+
+- Mute Tab
+
+- Pin Tabs
+
+- Clear Browsing Data (History, Cookies, Cache, Passwords, Downloads - Time Range) (velo://settings/privacy)
+
+- About Page (Shows general information & features about Velo, velo://about/)
+
+### Changed
+
+- Brand new icons for all buttons
+
+### Fixed
+
+- Heavily optimized the browser for lower-end PCs & Laptops
+
+---
+
 ## [1.1.1] - 2026-05-02
 
 ### Added

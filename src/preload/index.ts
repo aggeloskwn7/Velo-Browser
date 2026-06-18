@@ -14,6 +14,8 @@ import {
   type TabSnapshot,
   type TabsStatePayload,
   type VeloSettings,
+  type WorkspaceSnapshot,
+  type WorkspacesStatePayload,
   type PasswordBarState
 } from '../shared/ipc.js'
 
@@ -32,6 +34,38 @@ const shellApi = {
   tabsClose: (tabId: number): Promise<void> => ipcRenderer.invoke(IPC.tabsClose, { tabId }),
   tabsSetActive: (tabId: number): Promise<void> => ipcRenderer.invoke(IPC.tabsSetActive, { tabId }),
   tabsGetState: (): Promise<TabsStatePayload> => ipcRenderer.invoke(IPC.tabsGetState),
+  tabsPin: (tabId: number): Promise<boolean> => ipcRenderer.invoke(IPC.tabsPin, { tabId }),
+  tabsUnpin: (tabId: number): Promise<boolean> => ipcRenderer.invoke(IPC.tabsUnpin, { tabId }),
+  tabsSetMuted: (tabId: number, muted: boolean): Promise<boolean> =>
+    ipcRenderer.invoke(IPC.tabsSetMuted, { tabId, muted }),
+
+  tabsSplitCreate: (tabId: number): Promise<boolean> => ipcRenderer.invoke(IPC.tabsSplitCreate, { tabId }),
+  tabsSplitExit: (tabId: number, mode: 'both' | 'left' | 'right'): Promise<boolean> =>
+    ipcRenderer.invoke(IPC.tabsSplitExit, { tabId, mode }),
+  tabsSplitSetRatio: (tabId: number, ratio: number): Promise<boolean> =>
+    ipcRenderer.invoke(IPC.tabsSplitSetRatio, { tabId, ratio }),
+  tabsSplitSetFocus: (tabId: number, pane: 'left' | 'right'): Promise<boolean> =>
+    ipcRenderer.invoke(IPC.tabsSplitSetFocus, { tabId, pane }),
+  tabsSplitSwap: (tabId: number): Promise<boolean> => ipcRenderer.invoke(IPC.tabsSplitSwap, { tabId }),
+
+  onWorkspacesUpdated: (cb: (state: WorkspacesStatePayload) => void): (() => void) => {
+    const listener = (_e: Electron.IpcRendererEvent, state: WorkspacesStatePayload): void => {
+      cb(state)
+    }
+    ipcRenderer.on(IPC.workspacesUpdated, listener)
+    return () => ipcRenderer.removeListener(IPC.workspacesUpdated, listener)
+  },
+  workspacesList: (): Promise<WorkspacesStatePayload> => ipcRenderer.invoke(IPC.workspacesList),
+  workspacesCreate: (name: string, icon: string | null): Promise<string> =>
+    ipcRenderer.invoke(IPC.workspacesCreate, { name, icon }),
+  workspacesRename: (workspaceId: string, name: string): Promise<boolean> =>
+    ipcRenderer.invoke(IPC.workspacesRename, { workspaceId, name }),
+  workspacesDelete: (workspaceId: string): Promise<boolean> =>
+    ipcRenderer.invoke(IPC.workspacesDelete, { workspaceId }),
+  workspacesReorder: (orderedIds: string[]): Promise<boolean> =>
+    ipcRenderer.invoke(IPC.workspacesReorder, { orderedIds }),
+  workspacesSwitch: (workspaceId: string): Promise<boolean> =>
+    ipcRenderer.invoke(IPC.workspacesSwitch, { workspaceId }),
 
   navSubmit: (tabId: number, input: string): Promise<void> =>
     ipcRenderer.invoke(IPC.navSubmit, { tabId, input }),

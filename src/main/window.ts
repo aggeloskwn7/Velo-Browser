@@ -9,7 +9,7 @@ import * as settings from './settings-store.js'
 import { registerAdblockNotifyHandlers } from './adblock-notify.js'
 import { TabManager, setTabManager, getTabPreloadPath } from './tab-manager.js'
 import * as Tab from './tab-manager.js'
-import { flushBrowsingSessionSync, readLastBrowsingSession, restoreTabsIntoManager } from './last-session-store.js'
+import { flushBrowsingSessionSync } from './last-session-store.js'
 import { shellDevtoolsOpenOptions } from './devtools.js'
 import { extractHttpUrlFromArgv, flushPendingExternalUrls } from './default-browser.js'
 
@@ -94,7 +94,6 @@ export function createMainWindow(shellPreload: string, shellSession: Session, co
     getTabIdForWebContents: (wc) => mgr.getTabIdForWebContents(wc),
     getActiveTabId: () => mgr.getActiveTabId()
   })
-  mgr.applyPerformanceSettings()
 
   const onResize = (): void => {
     layoutChrome()
@@ -129,6 +128,11 @@ export function createMainWindow(shellPreload: string, shellSession: Session, co
     schedulePersistWindowLayout()
   })
 
+  mainWindow.on('minimize', () => mgr.onWindowStateChanged())
+  mainWindow.on('restore', () => mgr.onWindowStateChanged())
+  mainWindow.on('focus', () => mgr.onWindowStateChanged())
+  mainWindow.on('blur', () => mgr.onWindowStateChanged())
+
   mainWindow.on('close', () => {
     if (layoutPersistTimer) {
       clearTimeout(layoutPersistTimer)
@@ -136,6 +140,7 @@ export function createMainWindow(shellPreload: string, shellSession: Session, co
     }
     settings.persistMainWindowState(mainWindow)
     flushBrowsingSessionSync(mgr)
+    mgr.flushAllWorkspacesSync()
     mgr.beginShutdown()
   })
 
@@ -175,19 +180,16 @@ export function createMainWindow(shellPreload: string, shellSession: Session, co
       mainWindow.maximize()
     }
     const restore = settings.getSettings().startupBehavior === 'restore-tabs'
-    const saved = restore ? readLastBrowsingSession() : null
+    mgr.initWorkspaces(restore)
     const externalLaunch = extractHttpUrlFromArgv(process.argv)
-    if (saved && saved.tabs.length > 0) {
-      restoreTabsIntoManager(mgr, saved)
-      if (externalLaunch) {
-        mgr.createTab(externalLaunch)
-      }
-    } else if (externalLaunch) {
+    if (externalLaunch) {
       mgr.createTab(externalLaunch)
-    } else if (settings.shouldOfferWelcomeOnColdStart()) {
-      mgr.createTab('velo://welcome?intro=1')
-    } else {
-      mgr.createTab('velo://newtab')
+    } else if (mgr.getSnapshots().length === 0) {
+      if (settings.shouldOfferWelcomeOnColdStart()) {
+        mgr.createTab('velo://welcome?intro=1')
+      } else {
+        mgr.createTab('velo://newtab')
+      }
     }
     flushPendingExternalUrls((u) => mgr.createTab(u))
     mgr.applyPerformanceSettings()

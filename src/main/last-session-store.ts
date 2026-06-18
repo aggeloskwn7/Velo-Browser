@@ -21,6 +21,7 @@ export type TabSessionPersistSource = {
 
 export type TabRestoreTarget = TabSessionPersistSource & {
   createTab(url?: string): number
+  createBackgroundTab(url: string, loadDelayMs?: number): number
   setActiveTab(tabId: number): void
 }
 
@@ -130,16 +131,28 @@ export function readLastBrowsingSession(): LastBrowsingSessionV1 | null {
   }
 }
 
-export function restoreTabsIntoManager(mgr: TabRestoreTarget, session: LastBrowsingSessionV1): void {
+export function restoreTabsIntoManager(
+  mgr: TabRestoreTarget,
+  session: LastBrowsingSessionV1,
+  skipUrls?: ReadonlySet<string>
+): void {
   const tabs = session.tabs.filter(isRestorableUrl)
   if (tabs.length === 0) {
+    if (mgr.getSnapshots().length === 0) mgr.createTab('velo://newtab')
+    return
+  }
+  let loadIndex = 0
+  for (const url of tabs) {
+    const t = url.trim()
+    if (skipUrls?.has(t)) continue
+    mgr.createBackgroundTab(t, loadIndex * 80)
+    loadIndex++
+  }
+  const snaps = mgr.getSnapshots()
+  if (snaps.length === 0) {
     mgr.createTab('velo://newtab')
     return
   }
-  for (const url of tabs) {
-    mgr.createTab(url)
-  }
-  const snaps = mgr.getSnapshots()
   const idx = Math.min(Math.max(0, session.activeIndex), snaps.length - 1)
   const id = snaps[idx]?.id
   if (id != null) mgr.setActiveTab(id)

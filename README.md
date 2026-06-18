@@ -4,7 +4,7 @@ A modern, customizable desktop browser built with Electron and Chromium.
 
 Velo focuses on clean design, performance, and control — giving you a fast, distraction-free browsing experience with powerful built-in features like ad blocking, session restore, and a secure password vault.
 
-**Current release:** v1.0.0 (see `package.json` for the canonical version).
+**Current release:** v2.0.0 (see `package.json` for the canonical version).
 
 ---
 
@@ -193,13 +193,13 @@ Runtime profile data (history, config, vault, etc.) lives under the OS **user da
 These are deliberate gaps or long-running efforts, not bugs in the current release.
 
 - **Incognito / private windows** — separate ephemeral session, distinct from the main `persist:velo` profile.
-- **Clear browsing data** — unified UI to wipe cookies, cache, storage, history, and related artifacts with clear scope (time range, site, everything).
+- **Clear browsing data** — unified UI to wipe cookies, cache, storage, history, and related artifacts with clear scope (time range, site, everything). # DONE
 - **Chromium extension support** — high effort; would require an extension loader, background-page story, and security boundaries consistent with the rest of Velo.
 - **Cloud sync** — bookmarks, settings, or vault across devices (not planned as a first-party service today).
 - **Multiple profiles** — separate user profiles or session partitions selectable at launch.
 - **Deeper privacy tooling** — beyond configurable ad blocking: per-site permissions UI, stricter defaults, optional fingerprinting mitigations (scoped work).
 
-Things that **are** in scope for 1.x-style releases today include session restore, local password management, downloads, bookmarks, history, internal settings pages, and packaged installers.
+
 
 ---
 

@@ -20,7 +20,8 @@ import type {
   PasswordBarState,
   SearchEngine,
   TabSnapshot,
-  VeloSettings
+  VeloSettings,
+  WorkspacesStatePayload
 } from '@shared/ipc'
 import { DEFAULT_BOOKMARK_FOLDER_ID } from '@shared/ipc'
 import {
@@ -33,6 +34,9 @@ import {
   SITE_INFO_POPOVER_SHELL_RESERVE
 } from '@shared/constants'
 import { ChromeOverflowMenu } from './ChromeOverflowMenu'
+import { TabContextMenu, type TabContextMenuState } from './TabContextMenu'
+import { mergeTabSnapshots } from './tab-snapshot-merge'
+import { WorkspaceSwitcher } from './WorkspaceSwitcher'
 import {
   buildOmnibarSuggestions,
   getInlineAutocompleteCandidate,
@@ -46,8 +50,9 @@ import {
   IconStop,
   IconPlus,
   IconDownload,
+  IconStarPlus,
+  IconStarMinus,
   IconStarFilled,
-  IconStarOutline,
   IconShortcuts,
   IconSearch,
   IconGlobe,
@@ -56,6 +61,7 @@ import {
   IconLock,
   IconInfo,
   IconTabClose,
+  IconSplitSwap,
   IconAppWindow,
   IconGear,
   IconWinClose,
@@ -246,6 +252,11 @@ export default function App(): JSX.Element {
   
   const [tabFaviconLoadFailed, setTabFaviconLoadFailed] = useState<Record<number, string>>({})
   const [activeId, setActiveId] = useState<number | null>(null)
+  const [focusedTabId, setFocusedTabId] = useState<number | null>(null)
+  const [workspaces, setWorkspaces] = useState<WorkspacesStatePayload>({
+    workspaces: [],
+    activeWorkspaceId: ''
+  })
   const [omnibar, setOmnibar] = useState('')
   const [omnibarFocused, setOmnibarFocused] = useState(false)
   const [siteInfoOpen, setSiteInfoOpen] = useState(false)
@@ -269,6 +280,7 @@ export default function App(): JSX.Element {
     left: number
     width: number
   } | null>(null)
+  const [tabContextMenu, setTabContextMenu] = useState<TabContextMenuState>(null)
   const omnibarRef = useRef<HTMLInputElement>(null)
   const omnibarRawRef = useRef('')
   /** When true, skip re-applying ghost inline completion until the user types again, refocuses, or explicitly accepts inline (Tab/ArrowRight). Not cleared by Backspace-driven input events. */
@@ -306,6 +318,27 @@ export default function App(): JSX.Element {
     [tabs, activeId]
   )
 
+  const navTabId = focusedTabId ?? activeId
+
+  const navTab = useMemo(() => {
+    if (navTabId == null) return null
+    const strip = active
+    if (strip?.split) {
+      const pane = strip.split.focusedPane === 'left' ? strip.split.left : strip.split.right
+      return {
+        id: pane.tabId,
+        url: pane.url,
+        title: pane.title,
+        favicon: pane.favicon,
+        isLoading: pane.isLoading,
+        canGoBack: pane.canGoBack,
+        canGoForward: pane.canGoForward,
+        muted: pane.muted
+      }
+    }
+    return tabs.find((t) => t.id === navTabId) ?? null
+  }, [tabs, active, navTabId])
+
   const showDefaultBrowserBanner = Boolean(
     defaultBrowserStatus?.isPackaged &&
       !defaultBrowserStatus.isDefault &&
@@ -316,8 +349,8 @@ export default function App(): JSX.Element {
     defaultBrowserStatus?.isPackaged && !defaultBrowserStatus.isDefault
   )
 
-  const omnibarPageSec = useMemo(() => omnibarPageSecurity(active?.url), [active?.url])
-  const siteInfoLabel = useMemo(() => siteLabelFromTabUrl(active?.url), [active?.url])
+  const omnibarPageSec = useMemo(() => omnibarPageSecurity(navTab?.url), [navTab?.url])
+  const siteInfoLabel = useMemo(() => siteLabelFromTabUrl(navTab?.url), [navTab?.url])
 
   const refreshDefaultBrowserStatus = useCallback((): void => {
     void window.velo.getDefaultBrowserStatus().then(setDefaultBrowserStatus)
@@ -330,8 +363,6 @@ export default function App(): JSX.Element {
 
   useEffect(() => {
     refreshDefaultBrowserStatus()
-    const id = setInterval(refreshDefaultBrowserStatus, 2500)
-    return () => clearInterval(id)
   }, [refreshDefaultBrowserStatus])
 
   useEffect(() => {
@@ -369,21 +400,6 @@ export default function App(): JSX.Element {
 
   useEffect(() => {
     void refreshHistorySuggest()
-  }, [refreshHistorySuggest])
-
-  useEffect(() => {
-    let timer: ReturnType<typeof setTimeout> | null = null
-    const unsub = window.velo.onTabsUpdated(() => {
-      if (timer) clearTimeout(timer)
-      timer = setTimeout(() => {
-        timer = null
-        refreshHistorySuggest()
-      }, 450)
-    })
-    return () => {
-      unsub()
-      if (timer) clearTimeout(timer)
-    }
   }, [refreshHistorySuggest])
 
   const omnibarSuggestRows = useMemo((): OmnibarSuggestionRow[] => {
@@ -609,14 +625,33 @@ export default function App(): JSX.Element {
   const tabsScrollRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    const unsub = window.velo.onTabsUpdated(({ tabs: next, activeId: nextActive }) => {
-      setTabs(next)
+    let historyTimer: ReturnType<typeof setTimeout> | null = null
+    const unsub = window.velo.onTabsUpdated(({ tabs: next, activeId: nextActive, focusedTabId: nextFocused }) => {
+      setTabs((prev) => mergeTabSnapshots(prev, next))
       setActiveId(nextActive)
+      setFocusedTabId(nextFocused)
+      if (historyTimer) clearTimeout(historyTimer)
+      historyTimer = setTimeout(() => {
+        historyTimer = null
+        refreshHistorySuggest()
+      }, 450)
     })
     void window.velo.tabsGetState().then((initial) => {
       setTabs(initial.tabs)
       setActiveId(initial.activeId)
+      setFocusedTabId(initial.focusedTabId)
     })
+    return () => {
+      unsub()
+      if (historyTimer) clearTimeout(historyTimer)
+    }
+  }, [refreshHistorySuggest])
+
+  useEffect(() => {
+    const unsub = window.velo.onWorkspacesUpdated((next) => {
+      setWorkspaces(next)
+    })
+    void window.velo.workspacesList().then(setWorkspaces)
     return unsub
   }, [])
 
@@ -644,19 +679,19 @@ export default function App(): JSX.Element {
   }, [activeId, tabs.length])
 
   useEffect(() => {
-    if (!active?.url) {
+    if (!navTab?.url) {
       setIsBookmarked(false)
       return
     }
     void window.velo.bookmarksList().then((list) => {
       setIsBookmarked(list.some((b) => b.url === active.url))
     })
-  }, [active?.url])
+  }, [navTab?.url])
 
   useEffect(() => {
     const sync = (): void => {
       refreshHistorySuggest()
-      if (!active?.url) {
+      if (!navTab?.url) {
         setIsBookmarked(false)
         return
       }
@@ -666,7 +701,7 @@ export default function App(): JSX.Element {
     }
     window.addEventListener('velo-bookmarks-mutated', sync)
     return () => window.removeEventListener('velo-bookmarks-mutated', sync)
-  }, [active?.url, refreshHistorySuggest])
+  }, [navTab?.url, refreshHistorySuggest])
 
   useEffect(() => {
     const onOpen = (e: Event): void => {
@@ -707,7 +742,7 @@ export default function App(): JSX.Element {
       const t = e.target as HTMLElement | null
       if (t?.closest?.('input, textarea, [contenteditable="true"]')) return
       e.preventDefault()
-      const tab = tabs.find((x) => x.id === activeId)
+      const tab = tabs.find((x) => x.id === navTabId)
       if (!tab?.url) return
       void (async () => {
         const list = await window.velo.bookmarksList()
@@ -731,7 +766,7 @@ export default function App(): JSX.Element {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [tabs, activeId])
+  }, [tabs, navTabId])
 
   useEffect(() => {
     if (!bookmarkSaveModal) return
@@ -743,7 +778,7 @@ export default function App(): JSX.Element {
   }, [bookmarkSaveModal])
 
   useEffect(() => {
-    if (!active) {
+    if (!navTab) {
       setOmnibar('')
       omnibarRawRef.current = ''
       omnibarSyncTabIdRef.current = null
@@ -751,7 +786,7 @@ export default function App(): JSX.Element {
       return
     }
 
-    const tabId = active.id
+    const tabId = navTab.id
     const hadTab = omnibarSyncTabIdRef.current !== null
     const tabSwitched = hadTab && omnibarSyncTabIdRef.current !== tabId
     omnibarSyncTabIdRef.current = tabId
@@ -760,7 +795,7 @@ export default function App(): JSX.Element {
     omnibarWasFocusedRef.current = omnibarFocused
 
     if (!omnibarFocused) {
-      const u = omnibarPrettyFromTabUrl(active.url || '')
+      const u = omnibarPrettyFromTabUrl(navTab.url || '')
       setOmnibar(u)
       omnibarRawRef.current = u
       return
@@ -768,14 +803,14 @@ export default function App(): JSX.Element {
 
     if (tabSwitched || gainedFocus) {
       omnibarPendingSelectAllRef.current = true
-      const next = omnibarDisplayFromUrl(active.url || '')
+      const next = omnibarDisplayFromUrl(navTab.url || '')
       setOmnibar(next)
       omnibarRawRef.current = next
       if (next === omnibar) {
         setOmnibarSelectNonce((n) => n + 1)
       }
     }
-  }, [active, omnibarFocused])
+  }, [navTab, omnibarFocused])
 
   useLayoutEffect(() => {
     if (!omnibarFocused) {
@@ -791,7 +826,7 @@ export default function App(): JSX.Element {
 
   useEffect(() => {
     setSiteInfoOpen(false)
-  }, [active?.id, active?.url])
+  }, [navTab?.id, navTab?.url])
 
   useEffect(() => {
     if (!siteInfoOpen) return
@@ -1086,29 +1121,92 @@ export default function App(): JSX.Element {
     await window.velo.tabsClose(id)
   }, [])
 
+  const onTabContextMenu = useCallback(
+    (e: MouseEvent, tab: TabSnapshot) => {
+      e.preventDefault()
+      e.stopPropagation()
+      const activeStrip = tabs.find((t) => t.id === activeId)
+      const muted = tab.split
+        ? tab.split.focusedPane === 'left'
+          ? Boolean(tab.split.left.muted)
+          : Boolean(tab.split.right.muted)
+        : Boolean(tab.muted)
+      const canSplitWithActive = Boolean(
+        activeId != null &&
+          activeId !== tab.id &&
+          !tab.split &&
+          !activeStrip?.split
+      )
+      setTabContextMenu({
+        tabId: tab.id,
+        pinned: Boolean(tab.pinned),
+        muted,
+        isSplit: Boolean(tab.split),
+        canSplitWithActive,
+        x: e.clientX,
+        y: e.clientY
+      })
+    },
+    [tabs, activeId]
+  )
+
+  const onPinTab = useCallback(async (tabId: number) => {
+    await window.velo.tabsPin(tabId)
+  }, [])
+
+  const onUnpinTab = useCallback(async (tabId: number) => {
+    await window.velo.tabsUnpin(tabId)
+  }, [])
+
+  const onSetTabMuted = useCallback(
+    async (tabId: number, muted: boolean) => {
+      const tab = tabs.find((t) => t.id === tabId)
+      if (tab?.split) {
+        const pane = tab.split.focusedPane === 'left' ? tab.split.left : tab.split.right
+        await window.velo.tabsSetMuted(pane.tabId, muted)
+        return
+      }
+      await window.velo.tabsSetMuted(tabId, muted)
+    },
+    [tabs]
+  )
+
+  const onSplitWithActive = useCallback(async (tabId: number) => {
+    await window.velo.tabsSplitCreate(tabId)
+  }, [])
+
+  const onExitSplit = useCallback(async (tabId: number, mode: 'both' | 'left' | 'right') => {
+    await window.velo.tabsSplitExit(tabId, mode)
+  }, [])
+
+  const onSwapSplit = useCallback(async (e: MouseEvent, tabId: number) => {
+    e.stopPropagation()
+    await window.velo.tabsSplitSwap(tabId)
+  }, [])
+
   const onNavigate = useCallback(
     async (inputOverride?: string) => {
-      if (activeId == null) return
-      await window.velo.navSubmit(activeId, inputOverride ?? omnibar)
+      if (navTabId == null) return
+      await window.velo.navSubmit(navTabId, inputOverride ?? omnibar)
     },
-    [activeId, omnibar]
+    [navTabId, omnibar]
   )
 
   const onBack = useCallback(async () => {
-    if (activeId == null) return
-    await window.velo.navBack(activeId)
-  }, [activeId])
+    if (navTabId == null) return
+    await window.velo.navBack(navTabId)
+  }, [navTabId])
 
   const onForward = useCallback(async () => {
-    if (activeId == null) return
-    await window.velo.navForward(activeId)
-  }, [activeId])
+    if (navTabId == null) return
+    await window.velo.navForward(navTabId)
+  }, [navTabId])
 
   const onReload = useCallback(async () => {
-    if (activeId == null) return
-    if (active?.isLoading) await window.velo.navStop(activeId)
-    else await window.velo.navReload(activeId)
-  }, [activeId, active?.isLoading])
+    if (navTabId == null) return
+    if (navTab?.isLoading) await window.velo.navStop(navTabId)
+    else await window.velo.navReload(navTabId)
+  }, [navTabId, navTab?.isLoading])
 
   const onOmnibarMouseDown = useCallback((e: MouseEvent<HTMLInputElement>) => {
     const el = omnibarRef.current
@@ -1155,7 +1253,7 @@ export default function App(): JSX.Element {
       })
       setBookmarkNewFolderName('')
     }
-  }, [active?.url, active?.title, active?.favicon])
+  }, [navTab?.url, navTab?.title, navTab?.favicon])
 
   const omnibarSuggestHlQuery = omnibarRawRef.current.trim()
 
@@ -1701,6 +1799,15 @@ export default function App(): JSX.Element {
 
   return (
     <>
+      <TabContextMenu
+        menu={tabContextMenu}
+        onClose={() => setTabContextMenu(null)}
+        onPin={onPinTab}
+        onUnpin={onUnpinTab}
+        onSetMuted={onSetTabMuted}
+        onSplitWithActive={onSplitWithActive}
+        onExitSplit={onExitSplit}
+      />
       <div
         className="app"
         style={{ height: CHROME_HEIGHT + pbReserve + dbReserve, minHeight: CHROME_HEIGHT + pbReserve + dbReserve }}
@@ -1711,15 +1818,66 @@ export default function App(): JSX.Element {
       >
         <div className="tabs-scroll" ref={tabsScrollRef}>
           <div className="tabs-inner">
+            {workspaces.workspaces.length > 0 ? (
+              <WorkspaceSwitcher
+                state={workspaces}
+                onSwitch={(id) => void window.velo.workspacesSwitch(id)}
+                onCreate={(name, icon) => void window.velo.workspacesCreate(name, icon)}
+                onRename={(id, name) => void window.velo.workspacesRename(id, name)}
+                onDelete={(id) => void window.velo.workspacesDelete(id)}
+              />
+            ) : null}
             {tabs.map((t) => (
               <button
                 key={t.id}
                 type="button"
-                className={`tab no-drag ${t.id === activeId ? 'active' : ''}${t.isResting ? ' is-resting' : ''}`}
+                className={`tab no-drag ${t.id === activeId ? 'active' : ''}${t.isResting ? ' is-resting' : ''}${t.pinned ? ' pinned' : ''}${t.split ? ' split' : ''}`}
                 onClick={() => void onSelectTab(t.id)}
+                onContextMenu={(e) => onTabContextMenu(e, t)}
+                title={t.pinned ? t.title || t.url : undefined}
               >
                 <span className="tab-leading">
-                  {t.isLoading ? (
+                  {t.split ? (
+                    t.split.left.isLoading || t.split.right.isLoading ? (
+                      <span className="tab-loading" aria-hidden="true" title="Loading" />
+                    ) : (
+                      <span className="split-tab-favicons" aria-hidden="true">
+                        {t.split.left.favicon && tabFaviconLoadFailed[t.split.left.tabId] !== t.split.left.favicon ? (
+                          <img
+                            src={t.split.left.favicon}
+                            alt=""
+                            className="tab-favicon"
+                            onError={() =>
+                              setTabFaviconLoadFailed((p) =>
+                                p[t.split!.left.tabId] === t.split!.left.favicon
+                                  ? p
+                                  : { ...p, [t.split!.left.tabId]: t.split!.left.favicon! }
+                              )
+                            }
+                          />
+                        ) : (
+                          <span className="tab-favicon tab-favicon-placeholder" />
+                        )}
+                        <span className="split-tab-favicon-sep">·</span>
+                        {t.split.right.favicon && tabFaviconLoadFailed[t.split.right.tabId] !== t.split.right.favicon ? (
+                          <img
+                            src={t.split.right.favicon}
+                            alt=""
+                            className="tab-favicon"
+                            onError={() =>
+                              setTabFaviconLoadFailed((p) =>
+                                p[t.split!.right.tabId] === t.split!.right.favicon
+                                  ? p
+                                  : { ...p, [t.split!.right.tabId]: t.split!.right.favicon! }
+                              )
+                            }
+                          />
+                        ) : (
+                          <span className="tab-favicon tab-favicon-placeholder" />
+                        )}
+                      </span>
+                    )
+                  ) : t.isLoading ? (
                     <span className="tab-loading" aria-hidden="true" title="Loading" />
                   ) : t.favicon && tabFaviconLoadFailed[t.id] !== t.favicon ? (
                     <img
@@ -1734,16 +1892,32 @@ export default function App(): JSX.Element {
                     <span className="tab-favicon tab-favicon-placeholder" aria-hidden="true" />
                   )}
                 </span>
-                <span className="tab-title">{t.title || 'New tab'}</span>
-                <span
-                  role="button"
-                  tabIndex={0}
-                  className="tab-close no-drag"
-                  title="Close tab"
-                  onClick={(e) => void onCloseTab(e, t.id)}
-                >
-                  <IconTabClose size={18} />
-                </span>
+                {!t.pinned ? <span className="tab-title">{t.title || 'New tab'}</span> : null}
+                {!t.pinned ? (
+                  <span className="tab-trailing no-drag">
+                    {t.split ? (
+                      <span
+                        role="button"
+                        tabIndex={0}
+                        className="tab-split-swap"
+                        title="Swap split sides"
+                        aria-label="Swap split sides"
+                        onClick={(e) => void onSwapSplit(e, t.id)}
+                      >
+                        <IconSplitSwap size={15} />
+                      </span>
+                    ) : null}
+                    <span
+                      role="button"
+                      tabIndex={0}
+                      className="tab-close"
+                      title="Close tab"
+                      onClick={(e) => void onCloseTab(e, t.id)}
+                    >
+                      <IconTabClose size={18} />
+                    </span>
+                  </span>
+                ) : null}
               </button>
             ))}
             <button
@@ -1778,7 +1952,7 @@ export default function App(): JSX.Element {
             type="button"
             className="tool-btn"
             title="Back"
-            disabled={!active?.canGoBack}
+            disabled={!navTab?.canGoBack}
             onClick={() => void onBack()}
           >
             <IconBack size={20} />
@@ -1787,13 +1961,13 @@ export default function App(): JSX.Element {
             type="button"
             className="tool-btn"
             title="Forward"
-            disabled={!active?.canGoForward}
+            disabled={!navTab?.canGoForward}
             onClick={() => void onForward()}
           >
             <IconForward size={20} />
           </button>
-          <button type="button" className="tool-btn" title={active?.isLoading ? 'Stop' : 'Reload'} onClick={() => void onReload()}>
-            {active?.isLoading ? <IconStop size={18} /> : <IconReload size={18} />}
+          <button type="button" className="tool-btn" title={navTab?.isLoading ? 'Stop' : 'Reload'} onClick={() => void onReload()}>
+            {navTab?.isLoading ? <IconStop size={18} /> : <IconReload size={18} />}
           </button>
         </div>
         <div className="omnibar-wrap" ref={omnibarWrapRef}>
@@ -2000,7 +2174,7 @@ export default function App(): JSX.Element {
           </div>
         </div>
         <div className="actions">
-          {active?.url && isNewTabPageUrl(active.url) ? (
+          {navTab?.url && isNewTabPageUrl(navTab.url) ? (
             <button
               type="button"
               className="tool-btn"
@@ -2041,10 +2215,10 @@ export default function App(): JSX.Element {
             type="button"
             className={`bookmark-btn tool-btn ${isBookmarked ? 'is-bookmarked' : ''}`}
             title={isBookmarked ? 'Remove bookmark' : 'Bookmark this tab'}
-            disabled={!active?.url}
+            disabled={!navTab?.url}
             onClick={() => void bookmarkCurrent()}
           >
-            {isBookmarked ? <IconStarFilled size={20} /> : <IconStarOutline size={20} />}
+            {isBookmarked ? <IconStarMinus size={20} /> : <IconStarPlus size={20} />}
           </button>
           <ChromeOverflowMenu
             showMakeDefaultBrowser={showDefaultBrowserOverflowItem}

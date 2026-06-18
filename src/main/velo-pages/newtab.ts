@@ -193,16 +193,39 @@ const NEW_TAB_EXTRA = `
     text-align: right;
   }
   .nt-settings-bar {
-    position: relative;
-    display: inline-block;
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.15rem;
+  }
+  .nt-about-link {
+    flex: 0 0 auto;
+    font-size: clamp(0.82rem, 2.4vw, 0.88rem);
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    color: var(--nt-sub);
+    text-decoration: none;
+    padding: 0.4rem 0.55rem;
+    border-radius: 8px;
+    background: transparent;
+    line-height: 1.2;
+    transition: color 0.2s ease, transform 0.34s cubic-bezier(0.32, 0.72, 0, 1);
+  }
+  .nt-about-link:hover {
+    color: var(--accent);
+    text-decoration: underline;
+  }
+  .nt-about-link:focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--accent) 45%, transparent);
+    outline-offset: 2px;
   }
   .nt-settings-hint {
-    position: absolute;
-    right: 100%;
-    top: 50%;
-    margin-right: 0.55rem;
-    transform: translate(14px, -50%);
+    flex: 0 1 auto;
+    max-width: 0;
     opacity: 0;
+    overflow: hidden;
+    margin: 0;
+    padding: 0;
     font-size: clamp(0.72rem, 2.2vw, 0.82rem);
     font-weight: 500;
     letter-spacing: 0.03em;
@@ -210,13 +233,18 @@ const NEW_TAB_EXTRA = `
     white-space: nowrap;
     pointer-events: none;
     text-shadow: 0 1px 10px rgba(0, 0, 0, 0.45);
-    transition: opacity 0.28s ease, transform 0.34s cubic-bezier(0.32, 0.72, 0, 1);
+    transform: translateX(10px);
+    transition:
+      max-width 0.34s cubic-bezier(0.32, 0.72, 0, 1),
+      opacity 0.28s ease,
+      transform 0.34s cubic-bezier(0.32, 0.72, 0, 1);
   }
-  .nt-settings-anchor:hover .nt-settings-hint,
-  .nt-settings-anchor:focus-within .nt-settings-hint,
+  .nt-settings-bar:has(.nt-settings-btn:hover) .nt-settings-hint,
+  .nt-settings-bar:has(.nt-settings-btn:focus-visible) .nt-settings-hint,
   .nt-settings-anchor.nt-menu-open .nt-settings-hint {
+    max-width: 12rem;
     opacity: 1;
-    transform: translate(0, -50%);
+    transform: translateX(0);
   }
   .nt-settings-btn {
     display: flex; align-items: center; justify-content: center;
@@ -576,6 +604,7 @@ const NEW_TAB_EXTRA = `
 const NEW_TAB_BODY = `<div class="nt-wrap">
   <div class="nt-settings-anchor" id="ntSettingsAnchor">
     <div class="nt-settings-bar">
+      <a class="nt-about-link" href="velo://about">About</a>
       <span class="nt-settings-hint" aria-hidden="true">Page's Settings</span>
       <button type="button" class="nt-settings-btn" id="ntSettingsBtn" aria-label="New tab page options" aria-haspopup="true" aria-expanded="false">
         <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg>

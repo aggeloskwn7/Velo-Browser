@@ -15,7 +15,9 @@ import {
   type AutoUpdateStatusPayload,
   type BrowserDataDetectSourcesPayload,
   type BrowserDataImportChromiumPayload,
-  type BrowserDataImportChromiumResult
+  type BrowserDataImportChromiumResult,
+  type ClearBrowsingDataPayload,
+  type ClearBrowsingDataResult
 } from '../shared/ipc.js'
 
 interface VeloWindowMessageEvent {
@@ -115,6 +117,13 @@ const internal = {
 
   getAutoUpdateStatus: (): Promise<AutoUpdateStatusPayload> =>
     ipcRenderer.invoke(IPC.internalAutoUpdateGetStatus),
+  onAutoUpdateStatus: (cb: (payload: AutoUpdateStatusPayload) => void): (() => void) => {
+    const handler = (_e: Electron.IpcRendererEvent, payload: AutoUpdateStatusPayload): void => {
+      cb(payload)
+    }
+    ipcRenderer.on(IPC.autoUpdateStatus, handler)
+    return () => ipcRenderer.removeListener(IPC.autoUpdateStatus, handler)
+  },
   checkAutoUpdate: (): Promise<void> => ipcRenderer.invoke(IPC.internalAutoUpdateCheck),
   quitAndInstallUpdate: (): Promise<void> => ipcRenderer.invoke(IPC.internalAutoUpdateQuitAndInstall),
 
@@ -138,7 +147,10 @@ const internal = {
   browserDataImportChromium: (
     opts: BrowserDataImportChromiumPayload
   ): Promise<BrowserDataImportChromiumResult> =>
-    ipcRenderer.invoke(IPC.internalBrowserDataImportChromium, opts)
+    ipcRenderer.invoke(IPC.internalBrowserDataImportChromium, opts),
+
+  clearBrowsingData: (opts: ClearBrowsingDataPayload): Promise<ClearBrowsingDataResult> =>
+    ipcRenderer.invoke(IPC.internalClearBrowsingData, opts)
 }
 
 export type VeloPageApi = typeof internal

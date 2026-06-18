@@ -12,6 +12,17 @@ import { getSettings, normalizePinnedHostname } from './settings-store.js'
 
 const ADBLOCK_DEBUG = process.env.VELO_ADBLOCK_DEBUG === '1'
 
+let runtimeAdBlockLevel: AdBlockLevel = 'off'
+let runtimeAllowlistHosts: readonly string[] = []
+
+export function refreshAdblockRuntimeSettings(): void {
+  const s = getSettings()
+  runtimeAdBlockLevel = s.adBlockLevel
+  runtimeAllowlistHosts = s.adBlockAllowlistHostnames
+}
+
+refreshAdblockRuntimeSettings()
+
 const LOW_FILTER_LISTS: string[] = [...adsLists]
 
 const MEDIUM_FILTER_LISTS: string[] = [...adsAndTrackingLists]
@@ -187,8 +198,8 @@ export function isKnownAdOrTrackerHost(url: string): boolean {
   }
 }
 
-function userAllowlistHosts(): string[] {
-  return getSettings().adBlockAllowlistHostnames
+function userAllowlistHosts(): readonly string[] {
+  return runtimeAllowlistHosts
 }
 
 function hostnameMatchesUserAllowlist(host: string, allow: readonly string[]): boolean {
@@ -444,17 +455,21 @@ export async function applyAdBlockLevel(level: AdBlockLevel): Promise<void> {
 
   disableIfNeeded()
 
-  if (level === 'off') return
+  if (level === 'off') {
+    refreshAdblockRuntimeSettings()
+    return
+  }
 
   const fetchImpl = globalThis.fetch.bind(globalThis) as typeof globalThis.fetch
 
   try {
     const cache = diskCacheForLevel(level as Exclude<AdBlockLevel, 'off'>)
     const blocker = await createBlockerForLevel(level as Exclude<AdBlockLevel, 'off'>, fetchImpl, cache)
-    wrapBlockerForNetworkGateAndToast(blocker, () => getSettings().adBlockLevel)
+    wrapBlockerForNetworkGateAndToast(blocker, () => runtimeAdBlockLevel)
     wrapBlockerForAllowlistedSites(blocker)
     activeBlocker = blocker
     blocker.enableBlockingInSession(session)
+    refreshAdblockRuntimeSettings()
   } catch (err) {
     console.error('[velo adblock] init failed', level, err)
   }

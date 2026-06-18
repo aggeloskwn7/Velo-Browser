@@ -15,7 +15,7 @@ import { getChromeWebContents, getMainWindow, syncMainWindowBackground } from '.
 import * as settings from './settings-store.js'
 import * as history from './history-store.js'
 import * as downloads from './downloads-store.js'
-import { applyAdBlockLevel } from './adblock.js'
+import { applyAdBlockLevel, refreshAdblockRuntimeSettings } from './adblock.js'
 import { resolveNavigation } from './navigation.js'
 import { getLastTabCommittedUrl, recordTabCommittedUrl } from './velo-page-origin.js'
 import * as vault from './password-vault.js'
@@ -37,6 +37,7 @@ import {
 } from './auto-updater.js'
 import * as browserDataImport from './import-browser-data.js'
 import type { ImportChromiumBrowserOptions } from './import-browser-data.js'
+import { executeClearBrowsingData } from './clear-browsing-data.js'
 
 function requireManager() {
   const m = TabManager.manager
@@ -61,6 +62,8 @@ function afterSettingsPersisted(patch: Partial<VeloSettings>, next: VeloSettings
     void applyAdBlockLevel(next.adBlockLevel).catch((e) => {
       console.error('[velo adblock] re-apply after settings failed', e)
     })
+  } else if (patch.adBlockAllowlistHostnames !== undefined) {
+    refreshAdblockRuntimeSettings()
   }
   if (patch.passwordVaultRememberDevice === false) {
     clearDeviceWrappedPassphrase()
@@ -194,6 +197,14 @@ const historyRemovePayload = z.object({
 const downloadRemovePayload = z.object({ id: z.string().uuid() })
 const omnibarSuggestQuery = z.object({ query: z.string().min(1).max(400) })
 const revealDownloadPayload = z.object({ path: z.string().min(1).max(4096) })
+const clearBrowsingDataPayload = z.object({
+  history: z.boolean(),
+  cookies: z.boolean(),
+  cache: z.boolean(),
+  passwords: z.boolean(),
+  downloads: z.boolean(),
+  timeRange: z.enum(['hour', 'day', 'week', 'month', 'all'])
+})
 
 export function registerIpcHandlers(): void {
   ipcMain.handle(IPC.tabsCreate, (_e, raw) => {
@@ -208,6 +219,21 @@ export function registerIpcHandlers(): void {
     requireManager().closeTab(id)
   })
 
+  ipcMain.handle(IPC.tabsPin, (_e, raw) => {
+    const { tabId: id } = tabIdPayload.parse(raw)
+    return requireManager().pinTab(id)
+  })
+
+  ipcMain.handle(IPC.tabsUnpin, (_e, raw) => {
+    const { tabId: id } = tabIdPayload.parse(raw)
+    return requireManager().unpinTab(id)
+  })
+
+  ipcMain.handle(IPC.tabsSetMuted, (_e, raw) => {
+    const { tabId, muted } = z.object({ tabId: z.number().int().positive(), muted: z.boolean() }).parse(raw)
+    return requireManager().setTabMuted(tabId, muted)
+  })
+
   ipcMain.handle(IPC.tabsSetActive, (_e, raw) => {
     const { tabId: id } = tabIdPayload.parse(raw)
     requireManager().setActiveTab(id)
@@ -215,7 +241,97 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle(IPC.tabsGetState, () => {
     const m = requireManager()
-    return { tabs: m.getSnapshots(), activeId: m.getActiveTabId() }
+    return { tabs: m.getSnapshots(), activeId: m.getActiveTabId(), focusedTabId: m.getFocusedNavTabId() }
+  })
+
+  ipcMain.handle(IPC.tabsSplitCreate, (_e, raw) => {
+    const { tabId } = z.object({ tabId: z.number().int().positive() }).parse(raw)
+    return requireManager().createSplitWithActive(tabId)
+  })
+
+  ipcMain.handle(IPC.tabsSplitExit, (_e, raw) => {
+    const { tabId, mode } = z
+      .object({
+        tabId: z.number().int().positive(),
+        mode: z.enum(['both', 'left', 'right']).default('both')
+      })
+      .parse(raw)
+    return requireManager().exitSplitView(tabId, mode)
+  })
+
+  ipcMain.handle(IPC.tabsSplitSetRatio, (_e, raw) => {
+    const { tabId, ratio } = z
+      .object({ tabId: z.number().int().positive(), ratio: z.number().finite() })
+      .parse(raw)
+    return requireManager().setSplitRatio(tabId, ratio)
+  })
+
+  ipcMain.handle(IPC.tabsSplitSetFocus, (_e, raw) => {
+    const { tabId, pane } = z
+      .object({ tabId: z.number().int().positive(), pane: z.enum(['left', 'right']) })
+      .parse(raw)
+    return requireManager().setSplitFocusedPane(tabId, pane)
+  })
+
+  ipcMain.handle(IPC.tabsSplitSwap, (_e, raw) => {
+    const { tabId } = z.object({ tabId: z.number().int().positive() }).parse(raw)
+    return requireManager().swapSplitPanes(tabId)
+  })
+
+  ipcMain.on(IPC.splitDividerDragStart, (event) => {
+    const mgr = requireManager()
+    const divider = mgr.getSplitDividerWebContents()
+    if (!divider || event.sender.id !== divider.id) return
+    mgr.onSplitDividerDragStart()
+  })
+
+  ipcMain.on(IPC.splitDividerDragMove, (event, raw) => {
+    const mgr = requireManager()
+    const divider = mgr.getSplitDividerWebContents()
+    if (!divider || event.sender.id !== divider.id) return
+    const x = typeof raw === 'number' && Number.isFinite(raw) ? raw : NaN
+    mgr.onSplitDividerDragMove(x)
+  })
+
+  ipcMain.on(IPC.splitDividerDragEnd, (event) => {
+    const mgr = requireManager()
+    const divider = mgr.getSplitDividerWebContents()
+    if (!divider || event.sender.id !== divider.id) return
+    mgr.onSplitDividerDragEnd()
+  })
+
+  ipcMain.handle(IPC.workspacesList, () => requireManager().getWorkspacesState())
+
+  ipcMain.handle(IPC.workspacesCreate, (_e, raw) => {
+    const { name, icon } = z
+      .object({
+        name: z.string().min(1).max(64),
+        icon: z.string().max(8).nullable().optional()
+      })
+      .parse(raw ?? {})
+    return requireManager().createWorkspace(name, icon ?? null)
+  })
+
+  ipcMain.handle(IPC.workspacesRename, (_e, raw) => {
+    const { workspaceId, name } = z
+      .object({ workspaceId: z.string().min(1), name: z.string().min(1).max(64) })
+      .parse(raw)
+    return requireManager().renameWorkspace(workspaceId, name)
+  })
+
+  ipcMain.handle(IPC.workspacesDelete, (_e, raw) => {
+    const { workspaceId } = z.object({ workspaceId: z.string().min(1) }).parse(raw)
+    return requireManager().deleteWorkspace(workspaceId)
+  })
+
+  ipcMain.handle(IPC.workspacesReorder, (_e, raw) => {
+    const { orderedIds } = z.object({ orderedIds: z.array(z.string().min(1)) }).parse(raw)
+    return requireManager().reorderWorkspaces(orderedIds)
+  })
+
+  ipcMain.handle(IPC.workspacesSwitch, (_e, raw) => {
+    const { workspaceId } = z.object({ workspaceId: z.string().min(1) }).parse(raw)
+    return requireManager().switchWorkspace(workspaceId)
   })
 
   ipcMain.handle(IPC.navSubmit, (_e, raw) => {
@@ -866,5 +982,20 @@ export function registerIpcHandlers(): void {
     if (res.canceled || !res.filePath) return { ok: false as const, reason: 'cancelled' }
     writeFileSync(res.filePath, formatPasswordCsv(entries), 'utf8')
     return { ok: true as const, path: res.filePath }
+  })
+
+  ipcMain.handle(IPC.internalClearBrowsingData, async (e, raw) => {
+    assertVeloPage(e.sender)
+    const payload = clearBrowsingDataPayload.parse(raw)
+    if (
+      !payload.history &&
+      !payload.cookies &&
+      !payload.cache &&
+      !payload.passwords &&
+      !payload.downloads
+    ) {
+      throw new Error('Select at least one data type to clear.')
+    }
+    return await executeClearBrowsingData(payload)
   })
 }

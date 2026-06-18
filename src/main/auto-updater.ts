@@ -1,4 +1,4 @@
-import { app } from 'electron'
+import { app, webContents } from 'electron'
 import electronUpdater from 'electron-updater'
 import type { AutoUpdateStatusPayload } from '../shared/ipc.js'
 import { IPC } from '../shared/ipc.js'
@@ -11,8 +11,15 @@ let lastStatus: AutoUpdateStatusPayload = { phase: 'idle' }
 
 function pushToShell(): void {
   const shell = getChromeWebContents()
-  if (!shell || shell.isDestroyed()) return
-  shell.send(IPC.autoUpdateStatus, lastStatus)
+  if (shell && !shell.isDestroyed()) {
+    shell.send(IPC.autoUpdateStatus, lastStatus)
+  }
+  for (const wc of webContents.getAllWebContents()) {
+    if (wc.isDestroyed() || wc === shell) continue
+    try {
+      wc.send(IPC.autoUpdateStatus, lastStatus)
+    } catch {}
+  }
 }
 
 function setStatus(next: AutoUpdateStatusPayload): void {

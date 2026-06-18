@@ -61,9 +61,7 @@ export function chromeTimeToUnixMs(t: unknown): number {
 type ChromiumSourceConfig = {
   id: BrowserDataChromiumBrowserId
   displayName: string
-  /** Subpath segments from user home, e.g. AppData/Local/... */
   userDataSegments: string[]
-  /** Standard Chrome multi-profile User Data root vs Opera-style single folder */
   layout: 'multi-profile' | 'opera-root'
 }
 
@@ -205,7 +203,6 @@ function detectOneSource(cfg: ChromiumSourceConfig): BrowserDataSource {
   }
 }
 
-/** Full detection in stable UI order (renderer only sees ids + profile ids, not raw paths). */
 export function detectChromiumSources(): BrowserDataDetectSourcesPayload {
   const sources = CHROMIUM_SOURCE_CONFIGS.map(detectOneSource)
   return { sources }

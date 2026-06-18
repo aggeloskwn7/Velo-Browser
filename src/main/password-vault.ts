@@ -175,10 +175,6 @@ function createEmptyV2(): void {
   }
 }
 
-/**
- * Create an empty v2 vault if none exists; load v2 if present.
- * Does not load v1 (legacy) vaults — use `vaultNeedsMigration()` + `migrateFromV1Passphrase`.
- */
 export function ensureVaultReady(): void {
   if (!vaultFileExists()) {
     if (!isOsKeyStorageAvailable()) return
@@ -194,7 +190,6 @@ export function ensureVaultReady(): void {
   }
 }
 
-/** Clear key material at shutdown (optional hygiene). */
 export function shutdownVaultSession(): void {
   lock()
 }
@@ -220,7 +215,6 @@ function readV1EntriesWithPassphrase(passphrase: string): PasswordVaultEntry[] {
   return parsed.entries.map(normalizeEntry)
 }
 
-/** Re-encrypt vault with OS-wrapped key; replaces v1 file on disk. */
 export function migrateFromV1Passphrase(passphrase: string): void {
   if (!isOsKeyStorageAvailable()) {
     throw new Error('OS secure storage is not available; cannot migrate on this device.')
@@ -293,6 +287,25 @@ export function deleteEntry(id: string): void {
   if (i === -1) return
   entriesCache.splice(i, 1)
   persist()
+}
+
+export function deleteEntriesInRange(sinceMs: number | null): number {
+  if (!entriesCache || !sessionKey) return 0
+  if (sinceMs == null) {
+    const removed = entriesCache.length
+    entriesCache.length = 0
+    persist()
+    return removed
+  }
+  const before = entriesCache.length
+  const kept = entriesCache.filter((e) => e.updatedAt < sinceMs)
+  const removed = before - kept.length
+  if (removed > 0) {
+    entriesCache.length = 0
+    entriesCache.push(...kept)
+    persist()
+  }
+  return removed
 }
 
 export function importRows(rows: Array<{ domain: string; username: string; password: string }>): number {

@@ -148,22 +148,22 @@ if (!gotSingleInstanceLock) {
         console.warn('[velo] configureWebAuthn failed', err)
       }
     }
-    try {
-      passwordVault.ensureVaultReady()
-    } catch (err) {
-      console.warn('[velo] password vault init', err)
-    }
     registerIpcHandlers()
     setApplicationMenu()
     await initDownloadsStore()
 
-    
     const shellSession = session.fromPartition('memory:velo-shell')
     const contentSession = session.fromPartition('persist:velo')
     prepareBrowsingSession(contentSession)
 
     const shellPreload = join(__dirname, '../preload/index.mjs')
     createMainWindow(shellPreload, shellSession, contentSession)
+
+    try {
+      passwordVault.ensureVaultReady()
+    } catch (err) {
+      console.warn('[velo] password vault init', err)
+    }
 
     setDownloadsListListener(() => {
       const wc = getChromeWebContents()

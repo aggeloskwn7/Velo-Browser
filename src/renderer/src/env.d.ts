@@ -11,7 +11,8 @@ import type {
   PasswordBarState,
   TabSnapshot,
   TabsStatePayload,
-  VeloSettings
+  VeloSettings,
+  WorkspacesStatePayload
 } from '@shared/ipc'
 
 declare global {
@@ -22,6 +23,21 @@ declare global {
       tabsClose: (tabId: number) => Promise<void>
       tabsSetActive: (tabId: number) => Promise<void>
       tabsGetState: () => Promise<TabsStatePayload>
+      tabsPin: (tabId: number) => Promise<boolean>
+      tabsUnpin: (tabId: number) => Promise<boolean>
+      tabsSetMuted: (tabId: number, muted: boolean) => Promise<boolean>
+      tabsSplitCreate: (tabId: number) => Promise<boolean>
+      tabsSplitExit: (tabId: number, mode: 'both' | 'left' | 'right') => Promise<boolean>
+      tabsSplitSetRatio: (tabId: number, ratio: number) => Promise<boolean>
+      tabsSplitSetFocus: (tabId: number, pane: 'left' | 'right') => Promise<boolean>
+      tabsSplitSwap: (tabId: number) => Promise<boolean>
+      onWorkspacesUpdated: (cb: (state: WorkspacesStatePayload) => void) => () => void
+      workspacesList: () => Promise<WorkspacesStatePayload>
+      workspacesCreate: (name: string, icon: string | null) => Promise<string>
+      workspacesRename: (workspaceId: string, name: string) => Promise<boolean>
+      workspacesDelete: (workspaceId: string) => Promise<boolean>
+      workspacesReorder: (orderedIds: string[]) => Promise<boolean>
+      workspacesSwitch: (workspaceId: string) => Promise<boolean>
       navSubmit: (tabId: number, input: string) => Promise<void>
       navBack: (tabId: number) => Promise<void>
       navForward: (tabId: number) => Promise<void>

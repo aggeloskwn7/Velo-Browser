@@ -167,11 +167,145 @@ function panelDownloadPreferences(): string {
 
 function panelPrivacy(): string {
   return `<h2 class="vp-set-h">Privacy</h2>
-<div class="vp-privacy-adblock-warning" role="alert">
-  <div class="vp-privacy-adblock-warning__title">EXPERIMENTAL FEATURE</div>
-  <p class="vp-privacy-adblock-warning__body">This feature is being developed currently, and is not yet ready. It may or may not cause breakage on major sites. Would not recommend using it until fully tested.</p>
-</div>
 <style>
+  .vp-clear-data-card {
+    margin-bottom: 1.25rem;
+  }
+  .vp-clear-data-card .vp-set-h {
+    margin-bottom: 0.35rem;
+  }
+  .vp-clear-data-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    margin: 0.85rem 0 0;
+  }
+  .vp-clear-data-pill {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    width: 100%;
+    min-height: 2.125rem;
+    padding: 0.35rem 0.65rem 0.35rem 0.75rem;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: var(--vel-input-bg, var(--bg-elevated));
+    cursor: pointer;
+    user-select: none;
+    box-sizing: border-box;
+  }
+  .vp-clear-data-pill:hover {
+    border-color: color-mix(in srgb, var(--accent) 30%, var(--border));
+  }
+  .vp-clear-data-pill:has(input:checked) {
+    border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+    background: color-mix(in srgb, var(--accent) 7%, var(--vel-input-bg, var(--bg-elevated)));
+  }
+  .vp-clear-data-pill input {
+    position: absolute;
+    opacity: 0;
+    width: 1px;
+    height: 1px;
+    margin: 0;
+    pointer-events: none;
+  }
+  .vp-clear-data-pill__label {
+    font-size: 0.9rem;
+    font-weight: 550;
+    color: var(--fg);
+    line-height: 1.2;
+  }
+  .vp-clear-data-pill__box {
+    flex-shrink: 0;
+    width: 1rem;
+    height: 1rem;
+    border-radius: 4px;
+    border: 1.5px solid color-mix(in srgb, var(--border) 85%, var(--muted));
+    background: var(--card);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .vp-clear-data-pill__box svg {
+    width: 0.65rem;
+    height: 0.65rem;
+    opacity: 0;
+    stroke: #fff;
+  }
+  .vp-clear-data-pill:has(input:checked) .vp-clear-data-pill__box {
+    border-color: var(--accent);
+    background: var(--accent);
+  }
+  .vp-clear-data-pill:has(input:checked) .vp-clear-data-pill__box svg {
+    opacity: 1;
+  }
+  .vp-clear-data-range-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.65rem 0.85rem;
+    margin-top: 1rem;
+    padding-top: 0.85rem;
+    border-top: 1px solid var(--border);
+  }
+  .vp-clear-data-range-row > label {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--fg);
+    margin: 0;
+  }
+  .vp-clear-data-range-row select {
+    flex: 1;
+    min-width: min(100%, 12rem);
+    max-width: 16rem;
+  }
+  .vp-clear-data-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem 1rem;
+    margin-top: 1rem;
+  }
+  .vp-clear-data-btn {
+    margin: 0 !important;
+    padding: 0.55rem 1.15rem !important;
+    border-radius: 8px !important;
+    font-weight: 600 !important;
+    font-size: 0.875rem !important;
+    border: 1px solid color-mix(in srgb, var(--danger, #c62828) 50%, var(--border)) !important;
+    background: color-mix(in srgb, var(--danger, #c62828) 10%, var(--card)) !important;
+    color: var(--danger, #c62828) !important;
+  }
+  .vp-clear-data-btn:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--danger, #c62828) 16%, var(--card)) !important;
+  }
+  .vp-clear-data-btn:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+  .vp-clear-data-status {
+    margin: 0;
+    font-size: 0.8125rem;
+    line-height: 1.45;
+    color: var(--muted);
+    flex: 1;
+    min-width: 8rem;
+  }
+  .vp-clear-data-status.is-ok {
+    color: color-mix(in srgb, var(--accent) 75%, var(--fg));
+  }
+  .vp-clear-data-status.is-err {
+    color: var(--danger, #c62828);
+  }
+  .vp-privacy-section-label {
+    margin: 0 0 0.65rem;
+    font-size: 0.8125rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: color-mix(in srgb, var(--fg) 75%, var(--muted));
+  }
   .vp-privacy-adblock-warning {
     margin: 0 0 1.15rem 0;
     padding: 1rem 1.15rem;
@@ -332,6 +466,56 @@ function panelPrivacy(): string {
     border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
   }
 </style>
+<div class="card vp-clear-data-card">
+  <h3 class="vp-set-h">Clear browsing data</h3>
+  <p class="vp-set-note" style="margin-bottom:0">Remove stored history, site data, saved passwords, or download records. Open tabs may reload if cookies or cache are cleared.</p>
+  <div class="vp-clear-data-list" role="group" aria-label="Data types to clear">
+    <label class="vp-clear-data-pill">
+      <span class="vp-clear-data-pill__label">History</span>
+      <input type="checkbox" id="vp-clear-history" checked />
+      <span class="vp-clear-data-pill__box" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg></span>
+    </label>
+    <label class="vp-clear-data-pill">
+      <span class="vp-clear-data-pill__label">Cookies</span>
+      <input type="checkbox" id="vp-clear-cookies" checked />
+      <span class="vp-clear-data-pill__box" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg></span>
+    </label>
+    <label class="vp-clear-data-pill">
+      <span class="vp-clear-data-pill__label">Cache</span>
+      <input type="checkbox" id="vp-clear-cache" checked />
+      <span class="vp-clear-data-pill__box" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg></span>
+    </label>
+    <label class="vp-clear-data-pill">
+      <span class="vp-clear-data-pill__label">Passwords</span>
+      <input type="checkbox" id="vp-clear-passwords" />
+      <span class="vp-clear-data-pill__box" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg></span>
+    </label>
+    <label class="vp-clear-data-pill">
+      <span class="vp-clear-data-pill__label">Downloads</span>
+      <input type="checkbox" id="vp-clear-downloads" />
+      <span class="vp-clear-data-pill__box" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg></span>
+    </label>
+  </div>
+  <div class="vp-clear-data-range-row">
+    <label for="vp-clear-range">Time range</label>
+    <select id="vp-clear-range" aria-label="Time range">
+      <option value="hour">Last hour</option>
+      <option value="day">Last 24 hours</option>
+      <option value="week">Last 7 days</option>
+      <option value="month">Last 4 weeks</option>
+      <option value="all" selected>All time</option>
+    </select>
+  </div>
+  <div class="vp-clear-data-actions">
+    <button type="button" id="vp-clear-submit" class="vp-clear-data-btn">Clear data</button>
+    <p id="vp-clear-status" class="vp-clear-data-status" aria-live="polite"></p>
+  </div>
+</div>
+<p class="vp-privacy-section-label">Ad blocking</p>
+<div class="vp-privacy-adblock-warning" role="alert">
+  <div class="vp-privacy-adblock-warning__title">EXPERIMENTAL FEATURE</div>
+  <p class="vp-privacy-adblock-warning__body">This feature is being developed currently, and is not yet ready. It may or may not cause breakage on major sites. Would not recommend using it until fully tested.</p>
+</div>
 <div class="card">
   <div class="vp-set-row">
     <div class="vp-set-row__text">
@@ -368,6 +552,74 @@ function panelPrivacy(): string {
   </div>
   <div id="adblock-allow-list"></div>
 </div>
+<script>
+(function(){
+  var api = window.veloPage;
+  function el(id){ return document.getElementById(id); }
+  function setStatus(msg, kind){
+    var s = el('vp-clear-status');
+    if (!s) return;
+    s.textContent = msg || '';
+    s.className = 'vp-clear-data-status' + (kind === 'ok' ? ' is-ok' : kind === 'err' ? ' is-err' : '');
+  }
+  function rangeLabel(v){
+    if (v === 'hour') return 'the last hour';
+    if (v === 'day') return 'the last 24 hours';
+    if (v === 'week') return 'the last 7 days';
+    if (v === 'month') return 'the last 4 weeks';
+    return 'all time';
+  }
+  function buildSummary(cleared, payload){
+    var parts = [];
+    if (payload.history && cleared.history > 0) parts.push(cleared.history + ' history ' + (cleared.history === 1 ? 'entry' : 'entries'));
+    if (payload.cookies && cleared.cookies) parts.push('cookies');
+    if (payload.cache && cleared.cache) parts.push('cache');
+    if (payload.passwords && cleared.passwords > 0) parts.push(cleared.passwords + ' saved ' + (cleared.passwords === 1 ? 'password' : 'passwords'));
+    if (payload.downloads && cleared.downloads > 0) parts.push(cleared.downloads + ' download ' + (cleared.downloads === 1 ? 'record' : 'records'));
+    if (parts.length === 0) return 'Nothing matched the selected time range.';
+    return 'Cleared ' + parts.join(', ') + '.';
+  }
+  async function onClear(){
+    if (!api) return;
+    var payload = {
+      history: !!el('vp-clear-history') && el('vp-clear-history').checked,
+      cookies: !!el('vp-clear-cookies') && el('vp-clear-cookies').checked,
+      cache: !!el('vp-clear-cache') && el('vp-clear-cache').checked,
+      passwords: !!el('vp-clear-passwords') && el('vp-clear-passwords').checked,
+      downloads: !!el('vp-clear-downloads') && el('vp-clear-downloads').checked,
+      timeRange: el('vp-clear-range') ? el('vp-clear-range').value : 'all'
+    };
+    if (!payload.history && !payload.cookies && !payload.cache && !payload.passwords && !payload.downloads) {
+      setStatus('Select at least one type of data to clear.', 'err');
+      return;
+    }
+    var rangeText = rangeLabel(payload.timeRange);
+    var types = [];
+    if (payload.history) types.push('history');
+    if (payload.cookies) types.push('cookies');
+    if (payload.cache) types.push('cache');
+    if (payload.passwords) types.push('saved passwords');
+    if (payload.downloads) types.push('downloads');
+    var warn = 'Clear ' + types.join(', ') + ' for ' + rangeText + '?';
+    if (payload.passwords) warn += ' Saved passwords cannot be recovered.';
+    if (payload.downloads) warn += ' Download files on disk may be deleted.';
+    if (!confirm(warn)) return;
+    var btn = el('vp-clear-submit');
+    if (btn) btn.disabled = true;
+    setStatus('Clearing…', '');
+    try {
+      var result = await api.clearBrowsingData(payload);
+      setStatus(buildSummary(result.cleared, payload), 'ok');
+    } catch (err) {
+      setStatus(err && err.message ? String(err.message) : 'Could not clear browsing data.', 'err');
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  }
+  var submit = el('vp-clear-submit');
+  if (submit) submit.onclick = function(){ void onClear(); };
+})();
+</script>
 <script>
 (function(){
   var api = window.veloPage;
@@ -1186,7 +1438,14 @@ function panelSystem(): string {
     };
     load();
     void refreshUpd();
-    setInterval(refreshUpd, 4000);
+    if (api && api.onAutoUpdateStatus) {
+      api.onAutoUpdateStatus(function(st){
+        var line = el('sys-upd-line');
+        var btnR = el('sys-upd-restart');
+        if (line) line.textContent = formatUpd(st);
+        if (btnR) btnR.style.display = st.phase === 'downloaded' ? 'inline-block' : 'none';
+      });
+    }
   })();
 </script>`
 }

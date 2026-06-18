@@ -67,6 +67,19 @@ export async function clearHistory(): Promise<void> {
   await persist([])
 }
 
+export async function removeHistoryInRange(sinceMs: number | null): Promise<number> {
+  const list = await load()
+  if (sinceMs == null) {
+    const removed = list.length
+    await persist([])
+    return removed
+  }
+  const keep = list.filter((e) => e.visitedAt < sinceMs)
+  const removed = list.length - keep.length
+  if (removed > 0) await persist(keep)
+  return removed
+}
+
 function normalizeImportHistoryUrl(url: string): string | null {
   const t = url.trim()
   if (!t) return null

@@ -261,6 +261,38 @@ export function removeDownload(id: string): boolean {
   return true
 }
 
+function deleteFileForEntry(e: DownloadEntry): void {
+  if (e.fileRemovedFromDisk || e.state !== 'completed') return
+  if (!e.path) return
+  try {
+    if (existsSync(e.path)) unlinkSync(e.path)
+  } catch {}
+}
+
+export function clearDownloadsInRange(sinceMs: number | null, deleteFiles: boolean): number {
+  let removed = 0
+  if (sinceMs == null) {
+    for (const e of [...items]) {
+      if (deleteFiles) deleteFileForEntry(e)
+      cancelInProgressDownload(e.id)
+    }
+    removed = items.length
+    items.length = 0
+    if (removed > 0) emitUpdated()
+    return removed
+  }
+  for (let i = items.length - 1; i >= 0; i -= 1) {
+    const e = items[i]!
+    if (e.startedAt < sinceMs) continue
+    if (deleteFiles) deleteFileForEntry(e)
+    cancelInProgressDownload(e.id)
+    items.splice(i, 1)
+    removed += 1
+  }
+  if (removed > 0) emitUpdated()
+  return removed
+}
+
 function downloadDedupeKey(pathStr: string, startedAt: number): string {
   return `${pathStr}\t${Math.floor(startedAt / 1000)}`
 }

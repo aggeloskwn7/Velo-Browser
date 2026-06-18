@@ -9,6 +9,7 @@ import { renderSettingsPage } from './velo-pages/settings.js'
 import { readVeloLogoPng } from './velo-pages/static-assets.js'
 import { readBrowserBackgroundFile } from './velo-pages/browser-backgrounds.js'
 import { renderWelcomePage } from './velo-pages/welcome.js'
+import { renderAboutPage } from './velo-pages/about.js'
 
 
 export function registerVeloProtocol(contentSession: Session): void {
@@ -78,6 +79,10 @@ export function registerVeloProtocol(contentSession: Session): void {
         firstLaunch = u.searchParams.get('intro') === '1' || u.searchParams.get('first') === '1'
       } catch {}
       return new Response(renderWelcomePage({ firstLaunch }), { headers: htmlHeaders })
+    }
+
+    if (route === '/about') {
+      return new Response(renderAboutPage(), { headers: htmlHeaders })
     }
 
     if (route.startsWith('/settings')) {
