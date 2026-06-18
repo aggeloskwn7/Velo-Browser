@@ -969,8 +969,10 @@ export default function App(): JSX.Element {
     }
   }, [])
 
+  const fullScreenShellModalOpen = bookmarkSaveModal != null || updateToast != null
+
   useLayoutEffect(() => {
-    const reserve = bookmarkSaveModal != null ? BOOKMARK_SAVE_MODAL_SHELL_RESERVE : 0
+    const reserve = fullScreenShellModalOpen ? BOOKMARK_SAVE_MODAL_SHELL_RESERVE : 0
     let cancelled = false
     void window.velo.shellBookmarkModalSetReserve(reserve).then(() => {
       if (cancelled) return
@@ -985,16 +987,16 @@ export default function App(): JSX.Element {
     return () => {
       cancelled = true
     }
-  }, [bookmarkSaveModal])
+  }, [fullScreenShellModalOpen])
 
   useEffect(() => {
-    if (!bookmarkSaveModal) return
+    if (!fullScreenShellModalOpen) return
     const onResize = (): void => {
       void window.velo.shellBookmarkModalSetReserve(BOOKMARK_SAVE_MODAL_SHELL_RESERVE)
     }
     window.addEventListener('resize', onResize)
     return () => window.removeEventListener('resize', onResize)
-  }, [bookmarkSaveModal])
+  }, [fullScreenShellModalOpen])
 
   useLayoutEffect(() => {
     const show = siteInfoOpen && (omnibarPageSec === 'https' || omnibarPageSec === 'http')
@@ -1623,50 +1625,45 @@ export default function App(): JSX.Element {
         )
       : null
 
-  const updateToastEl =
+  const updateModalEl =
     updateToast != null
       ? createPortal(
-          <div
-            className="velo-adblock-toast velo-update-toast no-drag"
-            role="status"
-            aria-live="polite"
-            style={
-              {
-                top: 'calc(var(--chrome-height) + 10px)'
-              } as CSSProperties
-            }
-          >
-            <span className="velo-adblock-toast-ic" aria-hidden>
-              <IconDownload size={22} />
-            </span>
-            <div className="velo-adblock-toast-copy">
-              <span className="velo-adblock-toast-line">Update ready (v{updateToast.version})</span>
-              <p className="velo-adblock-toast-hint">Restart Velo to finish installing.</p>
-              <div className="velo-adblock-toast-actions">
+          <div className="velo-update-modal-backdrop no-drag" role="presentation">
+            <div
+              className="velo-update-modal"
+              role="alertdialog"
+              aria-modal="true"
+              aria-labelledby="velo-update-modal-title"
+              aria-describedby="velo-update-modal-desc"
+            >
+              <div className="velo-update-modal-badge" aria-hidden>
+                <IconDownload size={28} />
+              </div>
+              <p className="velo-update-modal-kicker">Update ready</p>
+              <h2 id="velo-update-modal-title" className="velo-update-modal-title">
+                Restart to install v{updateToast.version}
+              </h2>
+              <p id="velo-update-modal-desc" className="velo-update-modal-desc">
+                A new version of Velo has been downloaded. Restart now to finish installing — you can
+                also update later from Settings → System.
+              </p>
+              <div className="velo-update-modal-actions">
                 <button
                   type="button"
-                  className="velo-adblock-toast-btn"
+                  className="velo-update-modal-btn velo-update-modal-btn--primary"
                   onClick={() => void window.velo.quitAndInstallUpdate()}
                 >
-                  Restart Velo
+                  Restart &amp; update
                 </button>
                 <button
                   type="button"
-                  className="velo-adblock-toast-btn velo-adblock-toast-btn--secondary"
+                  className="velo-update-modal-btn velo-update-modal-btn--secondary"
                   onClick={() => setUpdateToast(null)}
                 >
-                  Later
+                  Not now
                 </button>
               </div>
             </div>
-            <button
-              type="button"
-              className="velo-adblock-toast-dismiss"
-              aria-label="Dismiss"
-              onClick={() => setUpdateToast(null)}
-            >
-              <IconTabClose size={14} />
-            </button>
           </div>,
           document.body
         )
@@ -2318,7 +2315,7 @@ export default function App(): JSX.Element {
       {siteInfoPopoverEl}
       {downloadPanelEl}
       {adblockToastEl}
-      {updateToastEl}
+      {updateModalEl}
       {omnibarSuggestEl}
     </>
   )

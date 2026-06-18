@@ -1489,13 +1489,179 @@ html[data-chrome-theme='white'] .velo-adblock-toast-dismiss:hover {
   background: rgba(0, 0, 0, 0.06);
 }
 
-.velo-update-toast {
-  max-width: min(380px, calc(100vw - 28px));
-  border-color: rgba(108, 158, 255, 0.35);
+.velo-update-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50000;
+  box-sizing: border-box;
+  background: rgba(0, 0, 0, 0.62);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px 16px;
+  overflow: auto;
+  animation: velo-update-modal-backdrop-in 0.25s ease-out;
 }
 
-html[data-chrome-theme='white'] .velo-update-toast {
-  border-color: rgba(47, 111, 237, 0.35);
+@keyframes velo-update-modal-backdrop-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.velo-update-modal {
+  position: relative;
+  width: min(440px, calc(100vw - 24px));
+  margin: auto;
+  padding: 1.65rem 1.5rem 1.35rem;
+  border-radius: 18px;
+  text-align: center;
+  background: var(--bg-elevated);
+  border: 2px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--accent) 18%, transparent),
+    0 24px 64px rgba(0, 0, 0, 0.5),
+    0 0 48px color-mix(in srgb, var(--accent) 22%, transparent);
+  color: var(--text);
+  animation:
+    velo-update-modal-in 0.32s cubic-bezier(0.22, 1, 0.36, 1),
+    velo-update-modal-glow 2.4s ease-in-out infinite;
+}
+
+@keyframes velo-update-modal-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes velo-update-modal-glow {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 1px color-mix(in srgb, var(--accent) 18%, transparent),
+      0 24px 64px rgba(0, 0, 0, 0.5),
+      0 0 36px color-mix(in srgb, var(--accent) 18%, transparent);
+  }
+  50% {
+    box-shadow:
+      0 0 0 1px color-mix(in srgb, var(--accent) 28%, transparent),
+      0 24px 64px rgba(0, 0, 0, 0.5),
+      0 0 56px color-mix(in srgb, var(--accent) 34%, transparent);
+  }
+}
+
+.velo-update-modal-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  margin: 0 auto 0.85rem;
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  color: var(--accent);
+}
+
+.velo-update-modal-kicker {
+  margin: 0 0 0.35rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.velo-update-modal-title {
+  margin: 0 0 0.65rem;
+  font-size: clamp(1.35rem, 4.5vw, 1.65rem);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.2;
+}
+
+.velo-update-modal-desc {
+  margin: 0;
+  font-size: 0.92rem;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+.velo-update-modal-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  margin-top: 1.35rem;
+}
+
+.velo-update-modal-btn {
+  width: 100%;
+  border-radius: 10px;
+  font: inherit;
+  font-size: 0.95rem;
+  padding: 0.72rem 1rem;
+  min-height: 44px;
+  cursor: pointer;
+  border: 1px solid var(--chrome-tab-separator, rgba(255, 255, 255, 0.15));
+}
+
+.velo-update-modal-btn--primary {
+  background: var(--accent, #6c9eff);
+  border-color: transparent;
+  color: var(--bg);
+  font-weight: 700;
+  animation: velo-update-modal-cta-pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes velo-update-modal-cta-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    filter: brightness(1);
+  }
+  50% {
+    transform: scale(1.02);
+    filter: brightness(1.08);
+  }
+}
+
+.velo-update-modal-btn--primary:hover {
+  filter: brightness(1.1);
+  animation: none;
+}
+
+.velo-update-modal-btn--secondary {
+  background: transparent;
+  color: var(--text-muted);
+}
+
+.velo-update-modal-btn--secondary:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text);
+}
+
+html[data-chrome-theme='white'] .velo-update-modal {
+  background: var(--bg-elevated);
+  border-color: rgba(47, 111, 237, 0.45);
+  box-shadow:
+    0 0 0 1px rgba(47, 111, 237, 0.12),
+    0 24px 48px rgba(0, 0, 0, 0.18),
+    0 0 40px rgba(47, 111, 237, 0.14);
+}
+
+html[data-chrome-theme='white'] .velo-update-modal-btn--primary {
+  color: #fff;
+}
+
+html[data-chrome-theme='white'] .velo-update-modal-btn--secondary:hover {
+  background: rgba(0, 0, 0, 0.05);
 }
 
 .download-toast-header {
