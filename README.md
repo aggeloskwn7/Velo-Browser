@@ -4,7 +4,7 @@ A modern, customizable desktop browser built with Electron and Chromium.
 
 Velo focuses on clean design, performance, and control — giving you a fast, distraction-free browsing experience with powerful built-in features like ad blocking, session restore, and a secure password vault.
 
-**Current release:** v2.0.1 (see `package.json` for the canonical version).
+**Current release:** v2.0.2 (see `package.json` for the canonical version).
 
 ---
 
